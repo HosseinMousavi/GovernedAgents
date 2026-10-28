@@ -1,0 +1,108 @@
+{
+  "name": "02 - Manager approval",
+  "nodes": [
+    {
+      "parameters": {"inputSource": "passthrough"},
+      "id": "trigger",
+      "name": "When called by intake",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 200]
+    },
+    {
+      "parameters": {
+        "resume": "form",
+        "formTitle": "Refund approval",
+        "formDescription": "=Order {{ $json.order.order_id }} ({{ $json.order.product_name }}) - proposed {{ $json.action }} of ${{ ($json.amount_cents/100).toFixed(2) }}.\nRationale: {{ $json.rationale }}\nTicket: {{ $json.ticket_id }}\nPolicy cited: {{ $json.citations.join(', ') }}\nRequest id: {{ $json.request_id }}",
+        "formFields": {"values": [
+          {"fieldLabel": "Decision", "fieldType": "dropdown", "fieldOptions": {"values": [{"option": "approve"}, {"option": "reject"}]}, "requiredField": true},
+          {"fieldLabel": "Note", "fieldType": "textarea"}
+        ]},
+        "options": {"limitWaitTime": {"values": {"resumeAmount": 2, "resumeUnit": "days"}}}
+      },
+      "id": "wait-approval",
+      "name": "Wait for manager (form)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [260, 200],
+      "webhookId": "manager-approval"
+    },
+    {
+      "parameters": {
+        "conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [{"id": "c1", "leftValue": "={{ $json.Decision }}", "rightValue": "approve", "operator": {"type": "string", "operation": "equals"}}],
+          "combinator": "and"},
+        "options": {}
+      },
+      "id": "if-approved",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [520, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MCP_SERVER_URL ?? 'http://mcp:8765/mcp' }}",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "Authorization", "value": "=Bearer {{ $env.MANAGER_TOKEN }}"},
+          {"name": "X-Agent-Name", "value": "n8n-approval-flow"},
+          {"name": "X-Agent-Version", "value": "1.0.0"},
+          {"name": "X-Request-Id", "value": "={{ $('When called by intake').item.json.request_id }}"},
+          {"name": "Accept", "value": "application/json, text/event-stream"}
+        ]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'issue_refund', arguments: { order_id: $('When called by intake').item.json.order.order_id, amount_cents: $('When called by intake').item.json.amount_cents, reason: 'manager approved: ' + ($json.Note || 'damaged on arrival') } } }) }}",
+        "options": {}
+      },
+      "id": "issue-refund",
+      "name": "MCP issue_refund (manager token)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json.result ?? $json;\nconst sc = r.structuredContent ?? {};\nconst base = $('When called by intake').item.json;\nreturn [{ json: { ...base, refund: sc, refund_status: r.isError ? 'failed' : 'refunded', manager_note: $('Wait for manager (form)').item.json.Note ?? '' } }];"
+      },
+      "id": "merge-result",
+      "name": "Merge refund result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1020, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('When called by intake').item.json;\nreturn [{ json: { ...base, refund_status: 'rejected', manager_note: $json.Note ?? '' } }];"
+      },
+      "id": "rejected",
+      "name": "Mark rejected",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 320]
+    },
+    {
+      "parameters": {
+        "workflowId": {"__rl": true, "mode": "list", "value": "REPLACE_WITH_03_WORKFLOW_ID", "cachedResultName": "03 - Ticket notification"},
+        "workflowInputs": {"mappingMode": "passThrough"},
+        "options": {}
+      },
+      "id": "notify",
+      "name": "Ticket notification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1260, 200]
+    }
+  ],
+  "connections": {
+    "When called by intake": {"main": [[{"node": "Wait for manager (form)", "type": "main", "index": 0}]]},
+    "Wait for manager (form)": {"main": [[{"node": "Approved?", "type": "main", "index": 0}]]},
+    "Approved?": {"main": [[{"node": "MCP issue_refund (manager token)", "type": "main", "index": 0}], [{"node": "Mark rejected", "type": "main", "index": 0}]]},
+    "MCP issue_refund (manager token)": {"main": [[{"node": "Merge refund result", "type": "main", "index": 0}]]},
+    "Merge refund result": {"main": [[{"node": "Ticket notification", "type": "main", "index": 0}]]},
+    "Mark rejected": {"main": [[{"node": "Ticket notification", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

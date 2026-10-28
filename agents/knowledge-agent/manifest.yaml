@@ -1,0 +1,13 @@
+name: knowledge-agent
+version: 1.0.0
+description: Answers policy/manual questions from pgvector with citations; escalates when unsure.
+owner: support-platform@store.example
+model: claude-sonnet-4-5
+runtime: python         # store_support.knowledge (langgraph | sdk)
+tools: []               # read-only RAG; no MCP business tools
+memory:
+  kind: none
+limits:
+  max_retries: 2
+  grade_threshold: 0.6
+  top_k: 5

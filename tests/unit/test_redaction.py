@@ -42,6 +42,9 @@ def test_configured_logger_redacts(capsys) -> None:
     from store_support.governance.logging_setup import configure_logging
 
     configure_logging(level=logging.INFO, json=True)
-    structlog.get_logger("t").info("hello", who="sam@corp.com")
-    captured = capsys.readouterr()
-    assert "sam@corp.com" not in captured.out + captured.err
+    try:
+        structlog.get_logger("t").info("hello", who="sam@corp.com")
+        captured = capsys.readouterr()
+        assert "sam@corp.com" not in captured.out + captured.err
+    finally:
+        structlog.reset_defaults()

@@ -1,0 +1,12 @@
+name: intake-agent
+version: 1.0.0
+description: Runs in n8n. Asks the defined intake questions and fills the IssueSpec JSON schema.
+owner: support-platform@store.example
+model: claude-sonnet-4-5
+runtime: n8n            # workflow n8n/workflows/01-intake-chat.json
+tools: []               # intake never touches business tools
+memory:
+  kind: session         # chat memory for the duration of one intake conversation
+  ttl_minutes: 30
+limits:
+  max_turns: 12

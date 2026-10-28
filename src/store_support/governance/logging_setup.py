@@ -4,7 +4,6 @@ nothing downstream (stdout, CloudWatch, OTel log bridge) ever sees raw PII."""
 from __future__ import annotations
 
 import logging
-import sys
 
 import structlog
 
@@ -22,6 +21,6 @@ def configure_logging(*, level: int = logging.INFO, json: bool = True) -> None:
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+        logger_factory=structlog.PrintLoggerFactory(),  # resolves sys.stdout per logger, not at config time
         cache_logger_on_first_use=False,
     )

@@ -1,0 +1,15 @@
+name: resolver-agent
+version: 1.0.0
+description: Turns an IssueSpec + knowledge answer into a proposed action (refund/replacement/ticket) using scoped MCP tools.
+owner: support-platform@store.example
+model: claude-sonnet-4-5
+runtime: python         # store_support.resolver
+tools:                  # allow-list; execute_tool refuses anything else for this agent
+  - lookup_order
+  - check_warranty
+  - check_inventory
+  - create_ticket
+memory:
+  kind: none
+limits:
+  max_refund_cents_without_ticket: 5000

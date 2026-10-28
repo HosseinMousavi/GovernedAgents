@@ -113,7 +113,7 @@ def main() -> None:
             yield PostgresRepository(conn)
 
     server = build_server(settings=settings, repo_factory=repo_factory)
-    server.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=True)  # noqa: S104
+    server.run(transport="streamable-http", host="0.0.0.0", port=8765, stateless_http=True, json_response=True)  # noqa: S104
 
 
 if __name__ == "__main__":

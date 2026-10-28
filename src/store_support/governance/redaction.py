@@ -41,12 +41,37 @@ def _presidio() -> tuple[Any, Any] | None:
         return None
 
 
+# Entity types we treat as PII. Deliberately excludes DATE_TIME, URL, NRP and the like:
+# Presidio's NER tags order numbers as dates and SKUs as people (seen in the field).
+PII_ENTITIES: tuple[str, ...] = (
+    "PERSON",
+    "EMAIL_ADDRESS",
+    "PHONE_NUMBER",
+    "CREDIT_CARD",
+    "US_SSN",
+    "IBAN_CODE",
+    "IP_ADDRESS",
+    "LOCATION",
+    "US_DRIVER_LICENSE",
+    "US_PASSPORT",
+    "US_BANK_NUMBER",
+)
+# Business identifiers are never PII, whatever the NER model thinks.
+_BUSINESS_ID = re.compile(r"^(?:(?:SKU|TCK|APT|RFD|REQ)-[A-Z0-9]+|\d{1,8})$", re.IGNORECASE)
+_MIN_SCORE = 0.4
+
+
 def redact_text(text: str) -> str:
     engines = _presidio()
     if engines is not None:
         analyzer, anonymizer = engines
-        results = analyzer.analyze(text=text, language="en")
-        text = anonymizer.anonymize(text=text, analyzer_results=results).text
+        results = [
+            r
+            for r in analyzer.analyze(text=text, language="en", entities=list(PII_ENTITIES), score_threshold=_MIN_SCORE)
+            if not _BUSINESS_ID.match(text[r.start : r.end].strip())
+        ]
+        if results:
+            text = anonymizer.anonymize(text=text, analyzer_results=results).text
     # Regex pass always runs: cheap, and covers formats NER occasionally misses.
     return _regex_redact(text)
 

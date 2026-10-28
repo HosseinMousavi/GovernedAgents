@@ -63,7 +63,8 @@ own scopes; the audit row and the trace carry both.
 ## Quick start
 
 ```bash
-make install                # pip install -e ".[dev]"
+conda create -n ssa python=3.12 -y && conda activate ssa   # or: python3.12 -m venv .venv && source .venv/bin/activate
+make install                # pip install -e ".[dev]"; add ".[pii]" + `python -m spacy download en_core_web_lg` for Presidio
 make test                   # 140 unit + integration tests, no services needed (Postgres tests skip)
 make eval                   # offline eval -> scorecard (zero network)
 python scripts/demo_offline.py   # the whole demo flow in-process

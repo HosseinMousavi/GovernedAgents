@@ -3,6 +3,9 @@
 install:
 	pip install -e ".[dev]"
 
+install-pii:
+	pip install -e ".[dev,pii]" && python -m spacy download en_core_web_lg
+
 test:
 	pytest tests/unit
 

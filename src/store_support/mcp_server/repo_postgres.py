@@ -45,7 +45,8 @@ class PostgresRepository:
     def create_ticket(self, *, order: Order, category: str, summary: str, created_by: str) -> str:
         tid = _id("TCK")
         self._conn.execute(
-            "INSERT INTO tickets (ticket_id, tenant_id, order_id, category, summary, created_by) VALUES (%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO tickets (ticket_id, tenant_id, order_id, category, summary, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s)",
             [tid, order.tenant_id, order.order_id, category, summary, created_by],
         )
         self._conn.commit()
@@ -54,7 +55,8 @@ class PostgresRepository:
     def schedule_service(self, *, order: Order, preferred_date: date, created_by: str) -> str:
         aid = _id("APT")
         self._conn.execute(
-            "INSERT INTO appointments (appointment_id, tenant_id, order_id, service_date, created_by) VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO appointments (appointment_id, tenant_id, order_id, service_date, created_by) "
+            "VALUES (%s,%s,%s,%s,%s)",
             [aid, order.tenant_id, order.order_id, preferred_date, created_by],
         )
         self._conn.commit()
@@ -64,11 +66,13 @@ class PostgresRepository:
         rid = _id("RFD")
         with self._conn.transaction():
             self._conn.execute(
-                "INSERT INTO refunds (refund_id, tenant_id, order_id, amount_cents, reason, approved_by) VALUES (%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO refunds (refund_id, tenant_id, order_id, amount_cents, reason, approved_by) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
                 [rid, order.tenant_id, order.order_id, amount_cents, reason, approved_by],
             )
             self._conn.execute(
-                "UPDATE orders SET status='refunded', refunded_cents = refunded_cents + %s WHERE order_id=%s AND tenant_id=%s",
+                "UPDATE orders SET status='refunded', refunded_cents = refunded_cents + %s "
+                "WHERE order_id=%s AND tenant_id=%s",
                 [amount_cents, order.order_id, order.tenant_id],
             )
         return rid

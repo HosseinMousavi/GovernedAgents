@@ -49,7 +49,7 @@ markers = ["db: requires Postgres", "llm: requires an LLM endpoint"]
 addopts = "-q"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]

@@ -1,6 +1,6 @@
 """Ingest markdown policies into pgvector for one tenant.
 
-    python -m store_support.knowledge.ingest data/policies --tenant store-a
+python -m store_support.knowledge.ingest data/policies --tenant store-a
 """
 
 from __future__ import annotations

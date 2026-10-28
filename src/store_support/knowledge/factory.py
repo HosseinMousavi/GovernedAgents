@@ -23,14 +23,18 @@ class KnowledgeService:
         self._tenant = tenant_id
         self._flavor = flavor
         self._conn = psycopg.connect(settings.database_url)
-        emb = default_embedder(ollama_base_url=settings.ollama_base_url, model=settings.embedding_model,
-                               openai_api_key=settings.openai_api_key)
+        emb = default_embedder(
+            ollama_base_url=settings.ollama_base_url,
+            model=settings.embedding_model,
+            openai_api_key=settings.openai_api_key,
+        )
         self._store = PgVectorStore(self._conn, emb)
         self._llm = AnthropicLLM(settings.anthropic_api_key, settings.chat_model)
 
     async def ask(self, question: str) -> KnowledgeResult:
         if self._flavor == "sdk":
-            return await SdkKnowledgeAgent(store=self._store, llm=self._llm, tenant_id=self._tenant,
-                                           model=self._s.chat_model).run(question)
+            return await SdkKnowledgeAgent(
+                store=self._store, llm=self._llm, tenant_id=self._tenant, model=self._s.chat_model
+            ).run(question)
         graph = build_graph(store=self._store, llm=self._llm, tenant_id=self._tenant)
         return run_graph(graph, question)

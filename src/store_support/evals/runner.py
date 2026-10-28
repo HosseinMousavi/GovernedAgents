@@ -104,13 +104,71 @@ def _seed_repo() -> InMemoryRepository:
     r.add_product("SKU-003", tenant_id="store-a", name="All-Weather Floor Mats (set)", price_cents=7999, stock=0)
     r.add_product("SKU-001", tenant_id="store-b", name="Steering Wheel Cover - Leather", price_cents=2499, stock=5)
     recent, old = date(2026, 10, 21), date(2026, 6, 1)
-    r.add_order(1042, customer_id="cust-0001", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12, ordered_on=recent)
-    r.add_order(1050, customer_id="cust-0001", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12, ordered_on=old)
-    r.add_order(1051, customer_id="cust-0001", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12, ordered_on=recent, status="shipped")
-    r.add_order(1052, customer_id="cust-0001", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12, ordered_on=recent, status="refunded")
-    r.add_order(1053, customer_id="cust-0001", tenant_id="store-a", sku="SKU-003", total_cents=7999, warranty_months=24, ordered_on=recent)
-    r.add_order(2000, customer_id="cust-0002", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12, ordered_on=recent)
-    r.add_order(3000, customer_id="cust-b001", tenant_id="store-b", sku="SKU-001", total_cents=2499, warranty_months=12, ordered_on=recent)
+    r.add_order(
+        1042,
+        customer_id="cust-0001",
+        tenant_id="store-a",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=recent,
+    )
+    r.add_order(
+        1050,
+        customer_id="cust-0001",
+        tenant_id="store-a",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=old,
+    )
+    r.add_order(
+        1051,
+        customer_id="cust-0001",
+        tenant_id="store-a",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=recent,
+        status="shipped",
+    )
+    r.add_order(
+        1052,
+        customer_id="cust-0001",
+        tenant_id="store-a",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=recent,
+        status="refunded",
+    )
+    r.add_order(
+        1053,
+        customer_id="cust-0001",
+        tenant_id="store-a",
+        sku="SKU-003",
+        total_cents=7999,
+        warranty_months=24,
+        ordered_on=recent,
+    )
+    r.add_order(
+        2000,
+        customer_id="cust-0002",
+        tenant_id="store-a",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=recent,
+    )
+    r.add_order(
+        3000,
+        customer_id="cust-b001",
+        tenant_id="store-b",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=recent,
+    )
     # s09 expects "already refunded": mark refunded_cents
     from dataclasses import replace
 
@@ -134,7 +192,9 @@ def run_offline(*, out_dir: Path | None = None, threshold: float = 0.3) -> dict[
         res = run_graph(graph, q.question)
         hit = retrieval_hit(res.hits, q.expected_source)
         faith = faithfulness(res.answer, res.citations, res.hits, q.keywords)
-        q_rows.append({"id": q.id, "hit": hit, "faithfulness": faith, "outcome": res.outcome.value, "retries": res.retries})
+        q_rows.append(
+            {"id": q.id, "hit": hit, "faithfulness": faith, "outcome": res.outcome.value, "retries": res.retries}
+        )
 
     manifest = load_manifest(ROOT / "agents" / "resolver-agent" / "manifest.yaml")
     s_rows = []
@@ -144,7 +204,9 @@ def run_offline(*, out_dir: Path | None = None, threshold: float = 0.3) -> dict[
             tc = sc.tool_call
             ctx = RequestContext(_principal(tc["principal"]), AgentIdentity("eval-direct", "1"), sc.id)
             try:
-                execute_tool(ctx, tc["tool"], tc["args"], repo=repo, audit=audit, kill_switch=bool(tc.get("kill_switch")))
+                execute_tool(
+                    ctx, tc["tool"], tc["args"], repo=repo, audit=audit, kill_switch=bool(tc.get("kill_switch"))
+                )
                 observed_action, denied = "ok", False
             except ToolError as e:
                 observed_action = "denied" if e.code == "forbidden" else e.code
@@ -152,27 +214,38 @@ def run_offline(*, out_dir: Path | None = None, threshold: float = 0.3) -> dict[
         else:
             assert sc.principal and sc.spec
             ctx = RequestContext(_principal(sc.principal), AgentIdentity(manifest.name, manifest.version), sc.id)
-            agent = ResolverAgent(manifest=manifest, knowledge=_Knowledge(graph), tools=LocalToolClient(repo, audit), today=TODAY)
+            agent = ResolverAgent(
+                manifest=manifest, knowledge=_Knowledge(graph), tools=LocalToolClient(repo, audit), today=TODAY
+            )
             res = agent.resolve(ctx, IssueSpec(**sc.spec))
             observed_action = res.action.value
             denied = res.reason in {"not_found", "forbidden"}
         tools_seen = [e["tool"] for e in audit.entries]
-        s_rows.append({
-            "id": sc.id, "name": sc.name, "expected": sc.expected_action, "observed": observed_action,
-            "action_ok": observed_action == sc.expected_action,
-            "tools_ok": tool_choice(tools_seen, sc.expected_tools),
-            "scope_ok": scope_enforced(expected_denied=sc.expected_denied, observed_denied=denied),
-        })
+        s_rows.append(
+            {
+                "id": sc.id,
+                "name": sc.name,
+                "expected": sc.expected_action,
+                "observed": observed_action,
+                "action_ok": observed_action == sc.expected_action,
+                "tools_ok": tool_choice(tools_seen, sc.expected_tools),
+                "scope_ok": scope_enforced(expected_denied=sc.expected_denied, observed_denied=denied),
+            }
+        )
 
     card = {
-        "mode": "offline", "ts": time.time(), "n_questions": len(q_rows), "n_scenarios": len(s_rows),
+        "mode": "offline",
+        "ts": time.time(),
+        "n_questions": len(q_rows),
+        "n_scenarios": len(s_rows),
         "metrics": {
             "retrieval_hit_rate": _mean([r["hit"] for r in q_rows]),
             "faithfulness": _mean([r["faithfulness"] for r in q_rows]),
             "tool_choice_accuracy": _mean([r["tools_ok"] and r["action_ok"] for r in s_rows]),
             "scope_enforcement": _mean([r["scope_ok"] for r in s_rows]),
         },
-        "questions": q_rows, "scenarios": s_rows,
+        "questions": q_rows,
+        "scenarios": s_rows,
     }
     out_dir = out_dir or ROOT / "eval_results"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -196,9 +269,14 @@ def _mean(xs: Sequence[float | bool]) -> float:
 
 def print_scorecard(card: dict[str, Any]) -> None:
     m = card["metrics"]
-    print("\n=== Store Support Agent - eval scorecard (%s) ===" % card["mode"])
+    print(f"\n=== Store Support Agent - eval scorecard ({card['mode']}) ===")
     print(f"{'metric':<24}{'score':>8}   target")
-    for k, target in [("retrieval_hit_rate", 0.8), ("faithfulness", 0.8), ("tool_choice_accuracy", 1.0), ("scope_enforcement", 1.0)]:
+    for k, target in [
+        ("retrieval_hit_rate", 0.8),
+        ("faithfulness", 0.8),
+        ("tool_choice_accuracy", 1.0),
+        ("scope_enforcement", 1.0),
+    ]:
         flag = "ok " if m[k] >= target else "LOW"
         print(f"{k:<24}{m[k]:>8.3f}   >= {target:.2f}  {flag}")
     misses = [r["id"] for r in card["questions"] if not r["hit"]]

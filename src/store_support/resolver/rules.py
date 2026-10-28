@@ -18,7 +18,7 @@ RETURN_WINDOW_DAYS = 30
 
 
 class Action(StrEnum):
-    PROPOSE_REFUND = "propose_refund"          # needs manager:refund approval in n8n
+    PROPOSE_REFUND = "propose_refund"  # needs manager:refund approval in n8n
     PROPOSE_REPLACEMENT = "propose_replacement"
     TICKET_ONLY = "ticket_only"
     ANSWER_ONLY = "answer_only"
@@ -51,15 +51,27 @@ def decide(spec: IssueSpec, order: dict[str, Any], *, today: date, in_stock: boo
 
     if spec.category in {"damaged", "defective", "wrong_item", "missing"}:
         if age > DAMAGE_REPORT_WINDOW_DAYS:
-            return Decision(Action.TICKET_ONLY, 0, False,
-                            f"reported {age} days after delivery; damaged-on-arrival window is {DAMAGE_REPORT_WINDOW_DAYS} days")
+            return Decision(
+                Action.TICKET_ONLY,
+                0,
+                False,
+                f"reported {age} days after delivery; damaged-on-arrival window is {DAMAGE_REPORT_WINDOW_DAYS} days",
+            )
         if spec.desired_outcome == "replacement" and in_stock:
-            return Decision(Action.PROPOSE_REPLACEMENT, 0, False, "damaged on arrival within window; replacement in stock")
+            return Decision(
+                Action.PROPOSE_REPLACEMENT, 0, False, "damaged on arrival within window; replacement in stock"
+            )
         if spec.desired_outcome in {"refund", "replacement"}:
-            return Decision(Action.PROPOSE_REFUND, total, True,
-                            "damaged on arrival within window; full refund requires manager approval")
+            return Decision(
+                Action.PROPOSE_REFUND,
+                total,
+                True,
+                "damaged on arrival within window; full refund requires manager approval",
+            )
         return Decision(Action.TICKET_ONLY, 0, False, "repair requested; route to staff")
 
     if age <= RETURN_WINDOW_DAYS and spec.desired_outcome == "refund":
-        return Decision(Action.PROPOSE_REFUND, total, True, "within 30-day return window; refund requires manager approval")
+        return Decision(
+            Action.PROPOSE_REFUND, total, True, "within 30-day return window; refund requires manager approval"
+        )
     return Decision(Action.TICKET_ONLY, 0, False, "outside standard windows; staff review")

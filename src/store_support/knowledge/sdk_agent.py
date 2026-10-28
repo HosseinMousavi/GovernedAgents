@@ -89,8 +89,13 @@ class SdkKnowledgeAgent:
         return {"search_policies": search_policies, "grade_context": grade_context, "escalate": escalate}
 
     def finalize(self, final_text: str, budget: RetrievalBudget) -> p.KnowledgeResult:
-        res = p.KnowledgeResult(outcome=p.Outcome.ESCALATED, retries=max(0, budget.searches - 1),
-                                queries=budget.queries, scores=budget.scores, hits=budget.last_hits)
+        res = p.KnowledgeResult(
+            outcome=p.Outcome.ESCALATED,
+            retries=max(0, budget.searches - 1),
+            queries=budget.queries,
+            scores=budget.scores,
+            hits=budget.last_hits,
+        )
         if budget.escalated_reason:
             res.reason = budget.escalated_reason
             return res
@@ -118,22 +123,33 @@ class SdkKnowledgeAgent:
         h = self.handlers(budget)
         tools = [
             tool("search_policies", "Search store policy and manual chunks.", {"query": str})(h["search_policies"]),
-            tool("grade_context", "Grade how well the last search answers the question (0..1).", {"question": str})(h["grade_context"]),
+            tool("grade_context", "Grade how well the last search answers the question (0..1).", {"question": str})(
+                h["grade_context"]
+            ),
             tool("escalate", "Hand off to a human with a short reason.", {"reason": str})(h["escalate"]),
         ]
         server = create_sdk_mcp_server("knowledge", tools=tools)
 
         async def deny_when_killed(_input: dict[str, Any], _tool_use_id: str | None, _ctx: Any) -> dict[str, Any]:
             if self.kill_switch.engaged:
-                return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                               "permissionDecisionReason": "kill switch engaged"}}
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": "kill switch engaged",
+                    }
+                }
             return {}
 
         options = ClaudeAgentOptions(
             model=self.model,
             system_prompt=SYSTEM_PROMPT.format(threshold=self.threshold, max_searches=budget.max_searches),
             mcp_servers={"knowledge": server},
-            allowed_tools=["mcp__knowledge__search_policies", "mcp__knowledge__grade_context", "mcp__knowledge__escalate"],
+            allowed_tools=[
+                "mcp__knowledge__search_policies",
+                "mcp__knowledge__grade_context",
+                "mcp__knowledge__escalate",
+            ],
             permission_mode="bypassPermissions",
             max_turns=4 + 2 * budget.max_searches,
             hooks={"PreToolUse": [HookMatcher(hooks=[deny_when_killed])]},

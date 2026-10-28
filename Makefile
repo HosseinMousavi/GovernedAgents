@@ -29,3 +29,12 @@ down:
 
 drift:
 	python -m store_support.evals.drift
+
+tokens:
+	python scripts/tokens.py
+
+demo:
+	./scripts/demo.sh
+
+demo-offline:
+	python scripts/demo_offline.py

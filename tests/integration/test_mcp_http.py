@@ -33,7 +33,7 @@ def _free_port() -> int:
 
 
 @pytest.fixture(scope="module")
-def server_url(tmp_path_factory) -> Iterator[tuple[str, AuditLog, "KillSwitch", object]]:
+def server_url(tmp_path_factory) -> Iterator[tuple[str, AuditLog, KillSwitch, object]]:
     repo = InMemoryRepository()
     repo.add_customer("cust-42", tenant_id="store-a", email="x@y.z")
     repo.add_product("SKU-1", tenant_id="store-a", name="Steering wheel cover", price_cents=2499, stock=3)
@@ -87,7 +87,14 @@ async def test_lists_six_tools_with_schemas(server_url) -> None:
                 await s.initialize()
                 tools = (await s.list_tools()).tools
     by_name = {t.name: t for t in tools}
-    assert set(by_name) == {"lookup_order", "check_inventory", "check_warranty", "create_ticket", "schedule_service", "issue_refund"}
+    assert set(by_name) == {
+        "lookup_order",
+        "check_inventory",
+        "check_warranty",
+        "create_ticket",
+        "schedule_service",
+        "issue_refund",
+    }
     assert by_name["issue_refund"].input_schema["required"] == ["order_id", "amount_cents", "reason"]
     assert "manager:refund" in (by_name["issue_refund"].description or "")
 
@@ -102,7 +109,9 @@ async def test_customer_token_reads_own_order(server_url) -> None:
 
 async def test_customer_token_denied_refund(server_url) -> None:
     url, audit, *_ = server_url
-    res = await _call(url, _token(Scope.CUSTOMER_READ_OWN), "issue_refund", {"order_id": 1042, "amount_cents": 1, "reason": "x"})
+    res = await _call(
+        url, _token(Scope.CUSTOMER_READ_OWN), "issue_refund", {"order_id": 1042, "amount_cents": 1, "reason": "x"}
+    )
     assert res.is_error is True
     assert audit.entries[-1]["reason"] == "missing_scope"
 

@@ -26,8 +26,15 @@ def test_intake_validate_reports_missing(client: TestClient) -> None:
 
 
 def test_intake_validate_ok(client: TestClient) -> None:
-    r = client.post("/intake/validate", json={"order_id": 1042, "category": "damaged",
-                                              "description": "cover arrived torn", "desired_outcome": "refund"})
+    r = client.post(
+        "/intake/validate",
+        json={
+            "order_id": 1042,
+            "category": "damaged",
+            "description": "cover arrived torn",
+            "desired_outcome": "refund",
+        },
+    )
     assert r.json()["ok"] is True
 
 

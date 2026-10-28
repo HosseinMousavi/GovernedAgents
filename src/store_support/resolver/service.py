@@ -1,12 +1,12 @@
 """Agents HTTP service - what n8n talks to.
 
-  GET  /healthz
-  GET  /intake/schema            IssueSpec JSON schema (n8n's LLM node fills this)
-  POST /intake/validate          {spec} -> {ok, missing, errors}
-  POST /resolve                  Authorization: Bearer <customer token>; body {spec} -> Resolution
-  POST /knowledge/ask            Authorization: Bearer <token>; body {question} -> KnowledgeResult
-  GET  /manifests                loaded agent manifests
-  POST /tokens/dev               DEV ONLY: mint a scoped token (disabled unless DEV_TOKENS=true)
+GET  /healthz
+GET  /intake/schema            IssueSpec JSON schema (n8n's LLM node fills this)
+POST /intake/validate          {spec} -> {ok, missing, errors}
+POST /resolve                  Authorization: Bearer <customer token>; body {spec} -> Resolution
+POST /knowledge/ask            Authorization: Bearer <token>; body {question} -> KnowledgeResult
+GET  /manifests                loaded agent manifests
+POST /tokens/dev               DEV ONLY: mint a scoped token (disabled unless DEV_TOKENS=true)
 """
 
 from __future__ import annotations
@@ -83,11 +83,16 @@ def build_app(settings: Settings) -> Starlette:
         ok, spec, errors = validate_spec(body.get("spec", body))
         if not ok or spec is None:
             return JSONResponse({"error": "invalid spec", "errors": errors}, status_code=422)
-        ctx = RequestContext(principal=principal, request_id=uuid.uuid4().hex,
-                             agent=AgentIdentity(resolver_manifest.name, resolver_manifest.version))
+        ctx = RequestContext(
+            principal=principal,
+            request_id=uuid.uuid4().hex,
+            agent=AgentIdentity(resolver_manifest.name, resolver_manifest.version),
+        )
         _tokens[ctx.request_id] = raw
         try:
-            knowledge = KnowledgeService(settings, principal.tenant_id, flavor=os.environ.get("KNOWLEDGE_FLAVOR", "langgraph"))  # type: ignore[arg-type]
+            knowledge = KnowledgeService(
+                settings, principal.tenant_id, flavor=os.environ.get("KNOWLEDGE_FLAVOR", "langgraph")
+            )  # type: ignore[arg-type]
             agent = ResolverAgent(manifest=resolver_manifest, knowledge=_SyncKnowledge(knowledge), tools=tools)
             result = await run_in_threadpool(agent.resolve, ctx, spec)
         finally:
@@ -100,12 +105,21 @@ def build_app(settings: Settings) -> Starlette:
         except TokenError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
         body = await request.json()
-        ctx = RequestContext(principal=principal, request_id=uuid.uuid4().hex, agent=AgentIdentity("knowledge-agent", "1.0.0"))
+        ctx = RequestContext(
+            principal=principal, request_id=uuid.uuid4().hex, agent=AgentIdentity("knowledge-agent", "1.0.0")
+        )
         with request_span(ctx):
             res = await KnowledgeService(settings, principal.tenant_id).ask(str(body["question"]))
-        return JSONResponse({"outcome": res.outcome.value, "answer": res.answer, "reason": res.reason,
-                             "citations": [f"{c.source}#{c.section}" for c in res.citations],
-                             "retries": res.retries, "scores": res.scores})
+        return JSONResponse(
+            {
+                "outcome": res.outcome.value,
+                "answer": res.answer,
+                "reason": res.reason,
+                "citations": [f"{c.source}#{c.section}" for c in res.citations],
+                "retries": res.retries,
+                "scores": res.scores,
+            }
+        )
 
     async def list_manifests(_: Request) -> JSONResponse:
         return JSONResponse({k: m.model_dump() for k, m in manifests.items()})
@@ -114,15 +128,22 @@ def build_app(settings: Settings) -> Starlette:
         if os.environ.get("DEV_TOKENS", "").lower() != "true":
             return JSONResponse({"error": "disabled"}, status_code=404)
         b = await request.json()
-        tok = issue_token(subject_id=b["subject_id"], tenant_id=b["tenant_id"], scopes=b["scopes"], key=settings.token_signing_key)
+        tok = issue_token(
+            subject_id=b["subject_id"], tenant_id=b["tenant_id"], scopes=b["scopes"], key=settings.token_signing_key
+        )
         return JSONResponse({"token": tok})
 
-    return Starlette(routes=[
-        Route("/healthz", healthz), Route("/intake/schema", intake_schema),
-        Route("/intake/validate", intake_validate, methods=["POST"]), Route("/resolve", resolve, methods=["POST"]),
-        Route("/knowledge/ask", knowledge_ask, methods=["POST"]), Route("/manifests", list_manifests),
-        Route("/tokens/dev", dev_token, methods=["POST"]),
-    ])
+    return Starlette(
+        routes=[
+            Route("/healthz", healthz),
+            Route("/intake/schema", intake_schema),
+            Route("/intake/validate", intake_validate, methods=["POST"]),
+            Route("/resolve", resolve, methods=["POST"]),
+            Route("/knowledge/ask", knowledge_ask, methods=["POST"]),
+            Route("/manifests", list_manifests),
+            Route("/tokens/dev", dev_token, methods=["POST"]),
+        ]
+    )
 
 
 class _SyncKnowledge:

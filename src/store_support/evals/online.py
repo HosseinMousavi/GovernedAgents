@@ -23,17 +23,27 @@ def run_online() -> dict[str, Any]:
     rows = []
     for q in load_questions(DATASETS / "questions.jsonl"):
         res = asyncio.run(svc.ask(q.question))
-        rows.append({"id": q.id, "hit": retrieval_hit(res.hits, q.expected_source),
-                     "faithfulness": faithfulness(res.answer, res.citations, res.hits, q.keywords),
-                     "outcome": res.outcome.value, "retries": res.retries})
+        rows.append(
+            {
+                "id": q.id,
+                "hit": retrieval_hit(res.hits, q.expected_source),
+                "faithfulness": faithfulness(res.answer, res.citations, res.hits, q.keywords),
+                "outcome": res.outcome.value,
+                "retries": res.retries,
+            }
+        )
     offline = run_offline()  # governance metrics come from the deterministic path
     return {
-        "mode": "online", "ts": time.time(), "n_questions": len(rows), "n_scenarios": offline["n_scenarios"],
+        "mode": "online",
+        "ts": time.time(),
+        "n_questions": len(rows),
+        "n_scenarios": offline["n_scenarios"],
         "metrics": {
             "retrieval_hit_rate": _mean([r["hit"] for r in rows]),
             "faithfulness": _mean([r["faithfulness"] for r in rows]),
             "tool_choice_accuracy": offline["metrics"]["tool_choice_accuracy"],
             "scope_enforcement": offline["metrics"]["scope_enforcement"],
         },
-        "questions": rows, "scenarios": offline["scenarios"],
+        "questions": rows,
+        "scenarios": offline["scenarios"],
     }

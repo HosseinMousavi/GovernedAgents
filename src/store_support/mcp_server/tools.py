@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, ValidationError
 from store_support.access import DenyReason, RequestContext, Scope, authorize_tool, required_scope, row_filter
 from store_support.mcp_server.audit import AuditLog
 from store_support.mcp_server.repo import Order, Repository
+from store_support.telemetry.tracing import tool_span
 
 
 class ToolError(Exception):
@@ -78,8 +79,13 @@ def _order_or_404(repo: Repository, ctx: RequestContext, order_id: int) -> Order
 
 def _order_view(o: Order) -> dict[str, Any]:
     return {
-        "order_id": o.order_id, "sku": o.sku, "product_name": o.product_name, "status": o.status,
-        "total_cents": o.total_cents, "refunded_cents": o.refunded_cents, "ordered_on": o.ordered_on.isoformat(),
+        "order_id": o.order_id,
+        "sku": o.sku,
+        "product_name": o.product_name,
+        "status": o.status,
+        "total_cents": o.total_cents,
+        "refunded_cents": o.refunded_cents,
+        "ordered_on": o.ordered_on.isoformat(),
     }
 
 
@@ -91,16 +97,27 @@ def check_inventory(ctx: RequestContext, repo: Repository, a: CheckInventoryIn) 
     inv = repo.get_inventory(a.sku, ctx.principal.tenant_id)
     if inv is None:
         raise ToolError("not_found", "sku not found")
-    return {"sku": inv.sku, "product_name": inv.product_name, "in_stock": inv.stock > 0,
-            "stock": inv.stock, "price_cents": inv.price_cents}
+    return {
+        "sku": inv.sku,
+        "product_name": inv.product_name,
+        "in_stock": inv.stock > 0,
+        "stock": inv.stock,
+        "price_cents": inv.price_cents,
+    }
 
 
-def check_warranty(ctx: RequestContext, repo: Repository, a: CheckWarrantyIn, *, today: date | None = None) -> dict[str, Any]:
+def check_warranty(
+    ctx: RequestContext, repo: Repository, a: CheckWarrantyIn, *, today: date | None = None
+) -> dict[str, Any]:
     o = _order_or_404(repo, ctx, a.order_id)
     today = today or date.today()
     expires = o.ordered_on + timedelta(days=30 * o.warranty_months)
-    return {"order_id": o.order_id, "months": o.warranty_months, "expires_on": expires.isoformat(),
-            "covered": today <= expires}
+    return {
+        "order_id": o.order_id,
+        "months": o.warranty_months,
+        "expires_on": expires.isoformat(),
+        "covered": today <= expires,
+    }
 
 
 def create_ticket(ctx: RequestContext, repo: Repository, a: CreateTicketIn) -> dict[str, Any]:
@@ -151,7 +168,9 @@ TOOLS: dict[str, ToolSpec] = {
     t.name: t
     for t in [
         ToolSpec("lookup_order", "Fetch an order the caller is allowed to see.", LookupOrderIn, lookup_order),
-        ToolSpec("check_inventory", "Stock and price for a SKU in the caller's store.", CheckInventoryIn, check_inventory),
+        ToolSpec(
+            "check_inventory", "Stock and price for a SKU in the caller's store.", CheckInventoryIn, check_inventory
+        ),
         ToolSpec("check_warranty", "Warranty window for an order.", CheckWarrantyIn, check_warranty),
         ToolSpec("create_ticket", "Open a support ticket against an order.", CreateTicketIn, create_ticket),
         ToolSpec("schedule_service", "Book a service appointment (staff only).", ScheduleServiceIn, schedule_service),
@@ -169,21 +188,25 @@ def execute_tool(
     audit: AuditLog,
     kill_switch: bool = False,
 ) -> dict[str, Any]:
-    try:
-        if kill_switch:
-            raise ToolError("forbidden", "tool execution disabled by kill switch", DenyReason.KILL_SWITCH)
-        decision = authorize_tool(ctx.principal, name)
-        if not decision:
-            raise ToolError("forbidden", "not entitled", decision.reason)
-        spec = TOOLS[name]
+    with tool_span(name, ctx) as span:
         try:
-            parsed = spec.model.model_validate(args)
-        except ValidationError as e:
-            raise ToolError("invalid_input", f"{e.error_count()} validation error(s)") from e
-        result = spec.handler(ctx, repo, parsed)
-    except ToolError as e:
-        audit.record(ctx, tool=name, outcome="denied" if e.code == "forbidden" else "error",
-                     reason=e.reason or e.code)
-        raise
-    audit.record(ctx, tool=name, outcome="ok")
-    return result
+            if kill_switch:
+                raise ToolError("forbidden", "tool execution disabled by kill switch", DenyReason.KILL_SWITCH)
+            decision = authorize_tool(ctx.principal, name)
+            if not decision:
+                raise ToolError("forbidden", "not entitled", decision.reason)
+            spec = TOOLS[name]
+            try:
+                parsed = spec.model.model_validate(args)
+            except ValidationError as e:
+                raise ToolError("invalid_input", f"{e.error_count()} validation error(s)") from e
+            result = spec.handler(ctx, repo, parsed)
+        except ToolError as e:
+            outcome = "denied" if e.code == "forbidden" else "error"
+            span.set_attribute("tool.outcome", outcome)
+            span.set_attribute("tool.reason", str(e.reason or e.code))
+            audit.record(ctx, tool=name, outcome=outcome, reason=e.reason or e.code)
+            raise
+        span.set_attribute("tool.outcome", "ok")
+        audit.record(ctx, tool=name, outcome="ok")
+        return result

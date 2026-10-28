@@ -18,7 +18,11 @@ app = typer.Typer(add_completion=False)
 
 
 def compare(baseline: dict[str, float], latest: dict[str, float], tolerance: float) -> list[str]:
-    return [f"{k}: {baseline[k]:.3f} -> {latest.get(k, 0.0):.3f}" for k in baseline if latest.get(k, 0.0) < baseline[k] - tolerance]
+    return [
+        f"{k}: {baseline[k]:.3f} -> {latest.get(k, 0.0):.3f}"
+        for k in baseline
+        if latest.get(k, 0.0) < baseline[k] - tolerance
+    ]
 
 
 @app.command()

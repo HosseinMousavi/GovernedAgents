@@ -127,10 +127,15 @@ def generate(*, seed: int = 42, n_customers: int = 200, n_orders: int = 500) -> 
 
     tenant_ids = list(TENANTS)
     for i in range(n_customers):
-        d.customers.append(Customer(
-            customer_id=f"cust-{i + 1:04d}", tenant_id=tenant_ids[i % 2], full_name=fake.name(),
-            email=fake.unique.email(), phone=fake.phone_number(),
-        ))
+        d.customers.append(
+            Customer(
+                customer_id=f"cust-{i + 1:04d}",
+                tenant_id=tenant_ids[i % 2],
+                full_name=fake.name(),
+                email=fake.unique.email(),
+                phone=fake.phone_number(),
+            )
+        )
 
     # Same 50-product catalog in each tenant; one Product row per tenant per SKU.
     for i, (name, cat, price, warr) in enumerate(CATALOG):
@@ -147,16 +152,24 @@ def generate(*, seed: int = 42, n_customers: int = 200, n_orders: int = 500) -> 
         cust = rng.choice(d.customers)
         sku_idx = rng.randrange(len(CATALOG))
         price = CATALOG[sku_idx][2]
-        d.orders.append(Order(
-            order_id=order_id, tenant_id=cust.tenant_id, customer_id=cust.customer_id,
-            sku=f"SKU-{sku_idx + 1:03d}", total_cents=price, status=rng.choice(statuses),
-            ordered_on=today - timedelta(days=rng.randint(1, 400)),
-        ))
+        d.orders.append(
+            Order(
+                order_id=order_id,
+                tenant_id=cust.tenant_id,
+                customer_id=cust.customer_id,
+                sku=f"SKU-{sku_idx + 1:03d}",
+                total_cents=price,
+                status=rng.choice(statuses),
+                ordered_on=today - timedelta(days=rng.randint(1, 400)),
+            )
+        )
 
     # Pin the demo order.
     demo_cust = by_tenant["store-a"][0]
     d.orders = [o for o in d.orders if o.order_id != 1042]
-    d.orders.append(Order(1042, "store-a", demo_cust.customer_id, "SKU-001", 2499, "delivered", today - timedelta(days=6)))
+    d.orders.append(
+        Order(1042, "store-a", demo_cust.customer_id, "SKU-001", 2499, "delivered", today - timedelta(days=6))
+    )
     d.orders.sort(key=lambda o: o.order_id)
     return d
 
@@ -170,11 +183,13 @@ def load(dataset: Dataset, database_url: str, schema_path: Path) -> None:
             conn.execute("INSERT INTO tenants VALUES (%s,%s) ON CONFLICT DO NOTHING", [t, name])
         with conn.cursor() as cur:
             cur.executemany(
-                "INSERT INTO customers (customer_id, tenant_id, full_name, email, phone) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                "INSERT INTO customers (customer_id, tenant_id, full_name, email, phone) "
+                "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 [(c.customer_id, c.tenant_id, c.full_name, c.email, c.phone) for c in dataset.customers],
             )
             cur.executemany(
-                "INSERT INTO products (sku, tenant_id, name, category, price_cents, warranty_months) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                "INSERT INTO products (sku, tenant_id, name, category, price_cents, warranty_months) "
+                "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                 [(p.sku, p.tenant_id, p.name, p.category, p.price_cents, p.warranty_months) for p in dataset.products],
             )
             cur.executemany(
@@ -182,8 +197,12 @@ def load(dataset: Dataset, database_url: str, schema_path: Path) -> None:
                 [(i.tenant_id, i.sku, i.stock) for i in dataset.inventory],
             )
             cur.executemany(
-                "INSERT INTO orders (order_id, tenant_id, customer_id, sku, total_cents, status, ordered_on) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                [(o.order_id, o.tenant_id, o.customer_id, o.sku, o.total_cents, o.status, o.ordered_on) for o in dataset.orders],
+                "INSERT INTO orders (order_id, tenant_id, customer_id, sku, total_cents, status, ordered_on) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                [
+                    (o.order_id, o.tenant_id, o.customer_id, o.sku, o.total_cents, o.status, o.ordered_on)
+                    for o in dataset.orders
+                ],
             )
         conn.commit()
 
@@ -194,7 +213,9 @@ def main() -> None:
     schema = Path(__file__).resolve().parents[3] / "data" / "schema.sql"
     d = generate()
     load(d, Settings.from_env().database_url, schema)
-    print(f"seeded {len(d.customers)} customers, {len(d.products)} product rows, {len(d.orders)} orders", file=sys.stderr)
+    print(
+        f"seeded {len(d.customers)} customers, {len(d.products)} product rows, {len(d.orders)} orders", file=sys.stderr
+    )
 
 
 if __name__ == "__main__":

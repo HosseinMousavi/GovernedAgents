@@ -46,8 +46,9 @@ class AnthropicLLM:
         self._max = max_tokens
 
     def _call(self, system: str, user: str) -> str:
-        msg = self._c.messages.create(model=self._model, max_tokens=self._max, system=system,
-                                      messages=[{"role": "user", "content": user}])
+        msg = self._c.messages.create(
+            model=self._model, max_tokens=self._max, system=system, messages=[{"role": "user", "content": user}]
+        )
         return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
 
     def grade(self, question: str, hits: Sequence[Hit]) -> float:
@@ -69,7 +70,9 @@ class AnthropicLLM:
 class FakeLLM:
     """Scripted responses; counts calls so tests can assert the loop's shape."""
 
-    def __init__(self, *, grades: Sequence[float] = (), rewrites: Sequence[str] = (), answer: str = "INSUFFICIENT_CONTEXT") -> None:
+    def __init__(
+        self, *, grades: Sequence[float] = (), rewrites: Sequence[str] = (), answer: str = "INSUFFICIENT_CONTEXT"
+    ) -> None:
         self._grades = list(grades)
         self._rewrites = list(rewrites)
         self._answer = answer

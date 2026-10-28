@@ -33,8 +33,9 @@ class State(TypedDict, total=False):
     reason: str | None
 
 
-def build_graph(*, store: VectorStore, llm: LLM, tenant_id: str, k: int = 5, max_retries: int = 2,
-                threshold: float = 0.6) -> CompiledStateGraph[Any, Any, Any, Any]:
+def build_graph(
+    *, store: VectorStore, llm: LLM, tenant_id: str, k: int = 5, max_retries: int = 2, threshold: float = 0.6
+) -> CompiledStateGraph[Any, Any, Any, Any]:
     def retrieve(s: State) -> State:
         q = s.get("query") or s["question"]
         hits = p.retrieve(store, tenant_id, q, k=k)
@@ -69,7 +70,13 @@ def build_graph(*, store: VectorStore, llm: LLM, tenant_id: str, k: int = 5, max
         return {"outcome": p.Outcome.ESCALATED, "reason": s.get("reason") or "low_relevance"}
 
     g: StateGraph[State] = StateGraph(State)
-    for name, fn in [("retrieve", retrieve), ("grade", grade), ("rewrite", rewrite), ("generate", generate), ("escalate", escalate)]:
+    for name, fn in [
+        ("retrieve", retrieve),
+        ("grade", grade),
+        ("rewrite", rewrite),
+        ("generate", generate),
+        ("escalate", escalate),
+    ]:
         g.add_node(name, fn)
     g.add_edge(START, "retrieve")
     g.add_edge("retrieve", "grade")
@@ -83,7 +90,12 @@ def build_graph(*, store: VectorStore, llm: LLM, tenant_id: str, k: int = 5, max
 def run_graph(graph: CompiledStateGraph[Any, Any, Any, Any], question: str) -> p.KnowledgeResult:
     s: State = graph.invoke({"question": question, "retries": 0, "queries": [], "scores": []})
     return p.KnowledgeResult(
-        outcome=s.get("outcome", p.Outcome.ESCALATED), answer=s.get("answer", ""),
-        citations=s.get("citations", []), reason=s.get("reason"), retries=s.get("retries", 0),
-        queries=s.get("queries", []), scores=s.get("scores", []), hits=s.get("hits", []),
+        outcome=s.get("outcome", p.Outcome.ESCALATED),
+        answer=s.get("answer", ""),
+        citations=s.get("citations", []),
+        reason=s.get("reason"),
+        retries=s.get("retries", 0),
+        queries=s.get("queries", []),
+        scores=s.get("scores", []),
+        hits=s.get("hits", []),
     )

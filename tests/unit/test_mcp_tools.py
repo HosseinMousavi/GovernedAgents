@@ -49,7 +49,12 @@ staff_b = Principal("staff-b", "store-b", frozenset({Scope.STAFF_READ_ALL}))
 
 def test_registry_has_six_tools_each_with_schema_and_scope() -> None:
     assert set(TOOLS) == {
-        "lookup_order", "check_inventory", "check_warranty", "create_ticket", "schedule_service", "issue_refund"
+        "lookup_order",
+        "check_inventory",
+        "check_warranty",
+        "create_ticket",
+        "schedule_service",
+        "issue_refund",
     }
     for spec in TOOLS.values():
         schema = spec.input_schema()
@@ -110,20 +115,38 @@ def test_unknown_tool(repo, audit) -> None:
 
 def test_customer_cannot_refund(repo, audit) -> None:
     with pytest.raises(ToolError) as e:
-        execute_tool(ctx(customer), "issue_refund", {"order_id": 1042, "amount_cents": 2499, "reason": "damaged"}, repo=repo, audit=audit)
+        execute_tool(
+            ctx(customer),
+            "issue_refund",
+            {"order_id": 1042, "amount_cents": 2499, "reason": "damaged"},
+            repo=repo,
+            audit=audit,
+        )
     assert e.value.code == "forbidden"
     assert e.value.reason == DenyReason.MISSING_SCOPE
 
 
 def test_manager_refunds_order_in_tenant(repo, audit) -> None:
-    out = execute_tool(ctx(manager), "issue_refund", {"order_id": 1042, "amount_cents": 2499, "reason": "damaged"}, repo=repo, audit=audit)
+    out = execute_tool(
+        ctx(manager),
+        "issue_refund",
+        {"order_id": 1042, "amount_cents": 2499, "reason": "damaged"},
+        repo=repo,
+        audit=audit,
+    )
     assert out["status"] == "refunded"
     assert out["amount_cents"] == 2499
 
 
 def test_refund_cannot_exceed_order_total(repo, audit) -> None:
     with pytest.raises(ToolError) as e:
-        execute_tool(ctx(manager), "issue_refund", {"order_id": 1042, "amount_cents": 99999, "reason": "x"}, repo=repo, audit=audit)
+        execute_tool(
+            ctx(manager),
+            "issue_refund",
+            {"order_id": 1042, "amount_cents": 99999, "reason": "x"},
+            repo=repo,
+            audit=audit,
+        )
     assert e.value.code == "business_rule"
 
 
@@ -137,7 +160,9 @@ def test_refund_is_idempotent_per_order(repo, audit) -> None:
 
 def test_manager_cannot_refund_other_tenant(repo, audit) -> None:
     with pytest.raises(ToolError) as e:
-        execute_tool(ctx(manager), "issue_refund", {"order_id": 3000, "amount_cents": 1, "reason": "x"}, repo=repo, audit=audit)
+        execute_tool(
+            ctx(manager), "issue_refund", {"order_id": 3000, "amount_cents": 1, "reason": "x"}, repo=repo, audit=audit
+        )
     assert e.value.code == "not_found"
 
 
@@ -145,24 +170,44 @@ def test_manager_cannot_refund_other_tenant(repo, audit) -> None:
 
 
 def test_customer_creates_ticket_for_own_order(repo, audit) -> None:
-    out = execute_tool(ctx(customer), "create_ticket", {"order_id": 1042, "category": "damaged", "summary": "arrived damaged"}, repo=repo, audit=audit)
+    out = execute_tool(
+        ctx(customer),
+        "create_ticket",
+        {"order_id": 1042, "category": "damaged", "summary": "arrived damaged"},
+        repo=repo,
+        audit=audit,
+    )
     assert out["ticket_id"].startswith("TCK-")
     assert out["status"] == "open"
 
 
 def test_customer_cannot_ticket_others_order(repo, audit) -> None:
     with pytest.raises(ToolError):
-        execute_tool(ctx(customer), "create_ticket", {"order_id": 2000, "category": "damaged", "summary": "x"}, repo=repo, audit=audit)
+        execute_tool(
+            ctx(customer),
+            "create_ticket",
+            {"order_id": 2000, "category": "damaged", "summary": "x"},
+            repo=repo,
+            audit=audit,
+        )
 
 
 def test_customer_cannot_schedule_service(repo, audit) -> None:
     with pytest.raises(ToolError) as e:
-        execute_tool(ctx(customer), "schedule_service", {"order_id": 1042, "preferred_date": "2026-11-03"}, repo=repo, audit=audit)
+        execute_tool(
+            ctx(customer),
+            "schedule_service",
+            {"order_id": 1042, "preferred_date": "2026-11-03"},
+            repo=repo,
+            audit=audit,
+        )
     assert e.value.reason == DenyReason.MISSING_SCOPE
 
 
 def test_staff_schedules_service(repo, audit) -> None:
-    out = execute_tool(ctx(staff), "schedule_service", {"order_id": 1042, "preferred_date": "2026-11-03"}, repo=repo, audit=audit)
+    out = execute_tool(
+        ctx(staff), "schedule_service", {"order_id": 1042, "preferred_date": "2026-11-03"}, repo=repo, audit=audit
+    )
     assert out["appointment_id"].startswith("APT-")
 
 
@@ -206,6 +251,8 @@ def test_audit_logs_agent_and_user_separately_without_pii(repo, audit) -> None:
 
 def test_audit_records_denials_with_reason_code(repo, audit) -> None:
     with pytest.raises(ToolError):
-        execute_tool(ctx(customer), "issue_refund", {"order_id": 1042, "amount_cents": 1, "reason": "x"}, repo=repo, audit=audit)
+        execute_tool(
+            ctx(customer), "issue_refund", {"order_id": 1042, "amount_cents": 1, "reason": "x"}, repo=repo, audit=audit
+        )
     assert audit.entries[-1]["outcome"] == "denied"
     assert audit.entries[-1]["reason"] == "missing_scope"

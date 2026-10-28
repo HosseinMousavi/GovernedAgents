@@ -55,10 +55,15 @@ class Resolution:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "action": self.action.value, "amount_cents": self.amount_cents, "requires_manager": self.requires_manager,
-            "rationale": self.rationale, "answer": self.answer,
+            "action": self.action.value,
+            "amount_cents": self.amount_cents,
+            "requires_manager": self.requires_manager,
+            "rationale": self.rationale,
+            "answer": self.answer,
             "citations": [f"{c.source}#{c.section}" for c in self.citations],
-            "order": self.order, "ticket_id": self.ticket_id, "reason": self.reason,
+            "order": self.order,
+            "ticket_id": self.ticket_id,
+            "reason": self.reason,
         }
 
 
@@ -92,8 +97,13 @@ class ResolverAgent:
             order = self.call_tool(ctx, "lookup_order", {"order_id": spec.order_id})
             warranty = self.call_tool(ctx, "check_warranty", {"order_id": spec.order_id})
         except ToolError as e:
-            return Resolution(Action.ESCALATE, answer=answer, citations=citations, reason=e.code,
-                              rationale="could not verify the order for this customer")
+            return Resolution(
+                Action.ESCALATE,
+                answer=answer,
+                citations=citations,
+                reason=e.code,
+                rationale="could not verify the order for this customer",
+            )
 
         in_stock: bool | None = None
         if spec.desired_outcome == "replacement":
@@ -107,11 +117,24 @@ class ResolverAgent:
 
         ticket_id = None
         if d.action != Action.ANSWER_ONLY:
-            t = self.call_tool(ctx, "create_ticket", {
-                "order_id": spec.order_id, "category": spec.category,
-                "summary": f"{d.action.value}: {d.rationale}. warranty_covered={warranty['covered']}",
-            })
+            t = self.call_tool(
+                ctx,
+                "create_ticket",
+                {
+                    "order_id": spec.order_id,
+                    "category": spec.category,
+                    "summary": f"{d.action.value}: {d.rationale}. warranty_covered={warranty['covered']}",
+                },
+            )
             ticket_id = t["ticket_id"]
 
-        return Resolution(d.action, d.amount_cents, d.requires_manager, d.rationale, answer, citations,
-                          order={k2: v for k2, v in order.items() if k2 != "customer_id"}, ticket_id=ticket_id)
+        return Resolution(
+            d.action,
+            d.amount_cents,
+            d.requires_manager,
+            d.rationale,
+            answer,
+            citations,
+            order={k2: v for k2, v in order.items() if k2 != "customer_id"},
+            ticket_id=ticket_id,
+        )

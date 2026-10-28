@@ -41,8 +41,11 @@ class McpToolClient:
                     res = await s.call_tool(tool, args)
         if res.is_error:
             text = "".join(getattr(c, "text", "") for c in res.content)
-            code = "forbidden" if "forbidden" in text or "not entitled" in text or "kill switch" in text else (
-                "not_found" if "not found" in text else "error")
+            code = (
+                "forbidden"
+                if "forbidden" in text or "not entitled" in text or "kill switch" in text
+                else ("not_found" if "not found" in text else "error")
+            )
             raise ToolError(code, text[:200])
         if res.structured_content:
             return dict(res.structured_content)

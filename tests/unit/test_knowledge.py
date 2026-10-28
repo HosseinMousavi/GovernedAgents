@@ -80,7 +80,11 @@ def _agent(store: InMemoryVectorStore, llm: FakeLLM) -> KnowledgeAgent:
 
 
 def test_answers_with_citation_when_grade_is_high(store: InMemoryVectorStore) -> None:
-    llm = FakeLLM(grades=[0.9], answer="Report it within 7 days for a free replacement or full refund. [manual-steering-wheel-cover.md#Common issues]")
+    llm = FakeLLM(
+        grades=[0.9],
+        answer="Report it within 7 days for a free replacement or full refund. "
+        "[manual-steering-wheel-cover.md#Common issues]",
+    )
     out = _agent(store, llm).run("my steering wheel cover arrived damaged, what can I do?")
     assert out.outcome == Outcome.ANSWERED
     assert out.citations and out.citations[0].source == "manual-steering-wheel-cover.md"
@@ -88,7 +92,11 @@ def test_answers_with_citation_when_grade_is_high(store: InMemoryVectorStore) ->
 
 
 def test_rewrites_and_retries_on_low_grade_then_succeeds(store: InMemoryVectorStore) -> None:
-    llm = FakeLLM(grades=[0.2, 0.8], rewrites=["damaged on arrival refund policy"], answer="Yes. [return-policy.md#Damaged or defective on arrival]")
+    llm = FakeLLM(
+        grades=[0.2, 0.8],
+        rewrites=["damaged on arrival refund policy"],
+        answer="Yes. [return-policy.md#Damaged or defective on arrival]",
+    )
     out = _agent(store, llm).run("thing broke??")
     assert out.outcome == Outcome.ANSWERED
     assert out.retries == 1

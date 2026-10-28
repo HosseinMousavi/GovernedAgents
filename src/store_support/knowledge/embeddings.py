@@ -24,7 +24,9 @@ class Embedder(Protocol):
     def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
-_STOP = frozenset("a an the my i me it is are was be to of in on for and or what can do with this that you your".split())
+_STOP = frozenset(
+    "a an the my i me it is are was be to of in on for and or what can do with this that you your".split()
+)
 _TOKEN = re.compile(r"[a-z0-9]+")
 
 

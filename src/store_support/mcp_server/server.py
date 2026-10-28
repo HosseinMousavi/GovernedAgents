@@ -28,7 +28,6 @@ from store_support.mcp_server.audit import AuditLog
 from store_support.mcp_server.repo import Repository
 from store_support.mcp_server.repo_postgres import PostgresRepository
 from store_support.mcp_server.tools import TOOLS, ToolError, ToolSpec, execute_tool
-from store_support.telemetry.tracing import tool_span
 
 
 class AuthError(Exception):
@@ -44,8 +43,9 @@ def context_from_headers(headers: dict[str, str] | None, *, key: str) -> Request
         principal = parse_token(auth[7:].strip(), key=key)
     except TokenError as e:
         raise AuthError(str(e)) from e
-    agent = AgentIdentity(name=headers.get("x-agent-name", "unknown-agent"),
-                          version=headers.get("x-agent-version", "0"))
+    agent = AgentIdentity(
+        name=headers.get("x-agent-name", "unknown-agent"), version=headers.get("x-agent-version", "0")
+    )
     return RequestContext(principal=principal, agent=agent, request_id=headers.get("x-request-id") or uuid.uuid4().hex)
 
 
@@ -55,7 +55,9 @@ def _make_tool_fn(spec: ToolSpec, run: Callable[[Context, str, dict[str, Any]], 
     annotations: dict[str, Any] = {"ctx": Context, "return": dict[str, Any]}
     for fname, finfo in spec.model.model_fields.items():
         default = inspect.Parameter.empty if finfo.is_required() else finfo.default
-        params.append(inspect.Parameter(fname, inspect.Parameter.KEYWORD_ONLY, default=default, annotation=finfo.annotation))
+        params.append(
+            inspect.Parameter(fname, inspect.Parameter.KEYWORD_ONLY, default=default, annotation=finfo.annotation)
+        )
         annotations[fname] = finfo.annotation
 
     def fn(*, ctx: Context, **kwargs: Any) -> dict[str, Any]:
@@ -87,11 +89,13 @@ def build_server(
             rc = context_from_headers(dict(ctx.headers or {}), key=settings.token_signing_key)
         except AuthError as e:
             raise ToolError("forbidden", f"auth: {e}") from e
-        with tool_span(name, rc), repo_factory() as repo:
+        with repo_factory() as repo:
             return execute_tool(rc, name, args, repo=repo, audit=audit, kill_switch=kill_switch.engaged)
 
     for spec in TOOLS.values():
-        server.tool(name=spec.name, description=f"{spec.description} Required scope: {spec.scope.value}.")(_make_tool_fn(spec, run))
+        server.tool(name=spec.name, description=f"{spec.description} Required scope: {spec.scope.value}.")(
+            _make_tool_fn(spec, run)
+        )
 
     @server.custom_route("/healthz", methods=["GET"])
     async def healthz(_request: Any) -> Any:

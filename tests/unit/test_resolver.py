@@ -26,13 +26,24 @@ TODAY = date(2026, 10, 27)
 
 
 def spec(**kw) -> IssueSpec:
-    base = {"order_id": 1042, "category": "damaged", "description": "steering wheel cover arrived damaged",
-            "desired_outcome": "refund", "product_hint": "steering wheel cover"}
+    base = {
+        "order_id": 1042,
+        "category": "damaged",
+        "description": "steering wheel cover arrived damaged",
+        "desired_outcome": "refund",
+        "product_hint": "steering wheel cover",
+    }
     return IssueSpec(**{**base, **kw})
 
 
 def order(**kw) -> dict:
-    base = {"order_id": 1042, "status": "delivered", "total_cents": 2499, "refunded_cents": 0, "ordered_on": "2026-10-21"}
+    base = {
+        "order_id": 1042,
+        "status": "delivered",
+        "total_cents": 2499,
+        "refunded_cents": 0,
+        "ordered_on": "2026-10-21",
+    }
     return {**base, **kw}
 
 
@@ -87,13 +98,23 @@ def world():
     repo = InMemoryRepository()
     repo.add_customer("cust-0001", tenant_id="store-a", email="a@b.c")
     repo.add_product("SKU-001", tenant_id="store-a", name="Steering Wheel Cover - Leather", price_cents=2499, stock=5)
-    repo.add_order(1042, customer_id="cust-0001", tenant_id="store-a", sku="SKU-001", total_cents=2499,
-                   warranty_months=12, ordered_on=date(2026, 10, 21))
+    repo.add_order(
+        1042,
+        customer_id="cust-0001",
+        tenant_id="store-a",
+        sku="SKU-001",
+        total_cents=2499,
+        warranty_months=12,
+        ordered_on=date(2026, 10, 21),
+    )
     store = InMemoryVectorStore(HashEmbedder(dim=128))
     for f in (ROOT / "data" / "policies").glob("*.md"):
         store.add("store-a", chunk_markdown(f.read_text(), source=f.name))
-    llm = FakeLLM(grades=[0.9], answer="Damaged on arrival: report within 7 days for a full refund or replacement. "
-                                       "[manual-steering-wheel-cover.md#Common issues]")
+    llm = FakeLLM(
+        grades=[0.9],
+        answer="Damaged on arrival: report within 7 days for a full refund or replacement. "
+        "[manual-steering-wheel-cover.md#Common issues]",
+    )
     knowledge = KnowledgeAgent(store=store, llm=llm, tenant_id="store-a")
     audit = AuditLog()
     manifest = load_manifest(ROOT / "agents" / "resolver-agent" / "manifest.yaml")
@@ -124,7 +145,9 @@ def test_resolver_never_calls_issue_refund_even_if_asked(world) -> None:
 def test_resolver_on_foreign_order_escalates_without_leaking(world) -> None:
     agent, ctx, audit, repo = world
     repo.add_customer("cust-0002", tenant_id="store-a", email="z@z.z")
-    repo.add_order(2000, customer_id="cust-0002", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12)
+    repo.add_order(
+        2000, customer_id="cust-0002", tenant_id="store-a", sku="SKU-001", total_cents=2499, warranty_months=12
+    )
     res = agent.resolve(ctx, spec(order_id=2000))
     assert res.action == Action.ESCALATE
     assert res.reason == "not_found"

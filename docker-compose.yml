@@ -1,0 +1,81 @@
+# Local stack. `make up` then open n8n at http://localhost:5678 and Jaeger at http://localhost:16686
+x-env: &env
+  DATABASE_URL: postgresql://ssa:ssa@postgres:5432/ssa
+  TOKEN_SIGNING_KEY: ${TOKEN_SIGNING_KEY:-dev-only-change-me}
+  KILL_SWITCH: ${KILL_SWITCH:-false}
+  KILL_SWITCH_FILE: /shared/KILL
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OLLAMA_BASE_URL: http://ollama:11434
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+  MCP_SERVER_URL: http://mcp:8765/mcp
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+  CHAT_MODEL: ${CHAT_MODEL:-claude-sonnet-4-5}
+  DEV_TOKENS: "true"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment: { POSTGRES_USER: ssa, POSTGRES_PASSWORD: ssa, POSTGRES_DB: ssa }
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ssa"], interval: 5s, retries: 20 }
+
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes: ["ollama:/root/.ollama"]
+
+  ollama-pull:                      # one-shot: pull the local embedding model
+    image: ollama/ollama:latest
+    depends_on: [ollama]
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && OLLAMA_HOST=http://ollama:11434 ollama pull ${EMBEDDING_MODEL:-bge-m3}"]
+    restart: "no"
+
+  jaeger:
+    image: jaegertracing/jaeger:2.4.0
+    ports: ["16686:16686", "4317:4317", "4318:4318"]
+
+  init:                             # one-shot: schema + synthetic data + ingest policies
+    build: .
+    environment: *env
+    depends_on:
+      postgres: { condition: service_healthy }
+      ollama-pull: { condition: service_completed_successfully }
+    command: ["/bin/sh", "-c", "python -m store_support.data.seed && python -m store_support.knowledge.ingest data/policies --tenant store-a && python -m store_support.knowledge.ingest data/policies --tenant store-b"]
+    restart: "no"
+
+  mcp:
+    build: .
+    environment: *env
+    ports: ["8765:8765"]
+    volumes: ["shared:/shared"]
+    depends_on:
+      init: { condition: service_completed_successfully }
+    command: ["python", "-m", "store_support.mcp_server.server"]
+
+  agents:
+    build: .
+    environment:
+      <<: *env
+      HEALTH_URL: http://localhost:8080/healthz
+      KNOWLEDGE_FLAVOR: ${KNOWLEDGE_FLAVOR:-langgraph}
+    ports: ["8080:8080"]
+    volumes: ["shared:/shared"]
+    depends_on: [mcp]
+    command: ["python", "-m", "store_support.resolver.service"]
+
+  n8n:
+    image: n8nio/n8n:latest
+    ports: ["5678:5678"]
+    environment:
+      N8N_SECURE_COOKIE: "false"
+      AGENTS_URL: http://agents:8080
+      MCP_SERVER_URL: http://mcp:8765/mcp
+      CUSTOMER_TOKEN: ${CUSTOMER_TOKEN:-}
+      MANAGER_TOKEN: ${MANAGER_TOKEN:-}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+    volumes: ["n8n:/home/node/.n8n", "./n8n/workflows:/workflows:ro"]
+    depends_on: [agents]
+
+volumes: { pgdata: {}, ollama: {}, n8n: {}, shared: {} }

@@ -28,7 +28,12 @@ def test_retrieval_hit() -> None:
 def test_faithfulness_requires_keywords_and_known_citations() -> None:
     hits = [Hit("return-policy.md", "Refund timing", "Approved refunds post within 5-7 business days.", 0.9)]
     cites = [Citation("return-policy.md", "Refund timing")]
-    assert faithfulness("Refunds post in 5-7 business days [return-policy.md#Refund timing]", cites, hits, ["5-7 business days"]) == 1.0
+    assert (
+        faithfulness(
+            "Refunds post in 5-7 business days [return-policy.md#Refund timing]", cites, hits, ["5-7 business days"]
+        )
+        == 1.0
+    )
     assert faithfulness("Refunds are instant", [], hits, ["5-7 business days"]) == 0.0
 
 
@@ -56,4 +61,6 @@ def test_drift_compare_flags_only_real_regressions() -> None:
 
     base = {"retrieval_hit_rate": 0.9, "faithfulness": 0.8}
     assert compare(base, {"retrieval_hit_rate": 0.88, "faithfulness": 0.8}, 0.05) == []
-    assert compare(base, {"retrieval_hit_rate": 0.7, "faithfulness": 0.8}, 0.05) == ["retrieval_hit_rate: 0.900 -> 0.700"]
+    assert compare(base, {"retrieval_hit_rate": 0.7, "faithfulness": 0.8}, 0.05) == [
+        "retrieval_hit_rate: 0.900 -> 0.700"
+    ]

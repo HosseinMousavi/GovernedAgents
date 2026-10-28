@@ -1,0 +1,30 @@
+{"id": "q01", "question": "My steering wheel cover arrived damaged, what are my options?", "expected_source": "manual-steering-wheel-cover.md", "keywords": ["7 days"]}
+{"id": "q02", "question": "How long do I have to return an item?", "expected_source": "return-policy.md", "keywords": ["30 days"]}
+{"id": "q03", "question": "Do I pay return shipping on a damaged delivery?", "expected_source": "return-policy.md", "keywords": ["not"]}
+{"id": "q04", "question": "When will my refund show up?", "expected_source": "return-policy.md", "keywords": ["5-7 business days"]}
+{"id": "q05", "question": "Can I return motor oil I opened?", "expected_source": "return-policy.md", "keywords": ["final sale"]}
+{"id": "q06", "question": "Who can approve a refund?", "expected_source": "refund-approval-policy.md", "keywords": ["manager:refund"]}
+{"id": "q07", "question": "Does a $600 refund need two approvals?", "expected_source": "refund-approval-policy.md", "keywords": ["two manager"]}
+{"id": "q08", "question": "Can an order be refunded twice?", "expected_source": "refund-approval-policy.md", "keywords": ["One refund per order"]}
+{"id": "q09", "question": "How long does standard shipping take?", "expected_source": "shipping-policy.md", "keywords": ["3-6 business days"]}
+{"id": "q10", "question": "Tracking says delivered but I have no package", "expected_source": "shipping-policy.md", "keywords": ["48 hours"]}
+{"id": "q11", "question": "Can I change my shipping address?", "expected_source": "shipping-policy.md", "keywords": ["placed"]}
+{"id": "q12", "question": "How long is the warranty on roof rack crossbars?", "expected_source": "warranty-policy.md", "keywords": ["36 months"]}
+{"id": "q13", "question": "Is damage from improper installation covered by warranty?", "expected_source": "warranty-policy.md", "keywords": ["not covered"]}
+{"id": "q14", "question": "How do I make a warranty claim?", "expected_source": "warranty-policy.md", "keywords": ["warranty check"]}
+{"id": "q15", "question": "What hours can I book an installation appointment?", "expected_source": "service-scheduling.md", "keywords": ["8:00-18:00"]}
+{"id": "q16", "question": "How long is a brake service appointment?", "expected_source": "service-scheduling.md", "keywords": ["120 minutes"]}
+{"id": "q17", "question": "Can customers book their own service appointment?", "expected_source": "service-scheduling.md", "keywords": ["staff"]}
+{"id": "q18", "question": "Can staff see orders from another store?", "expected_source": "privacy-and-data-handling.md", "keywords": ["across stores"]}
+{"id": "q19", "question": "Are emails written to the logs?", "expected_source": "privacy-and-data-handling.md", "keywords": ["never"]}
+{"id": "q20", "question": "How long are audit logs kept?", "expected_source": "privacy-and-data-handling.md", "keywords": ["13 months"]}
+{"id": "q21", "question": "When does the knowledge agent hand off to a human?", "expected_source": "escalation-policy.md", "keywords": ["two retrieval"]}
+{"id": "q22", "question": "How fast are escalations acknowledged?", "expected_source": "escalation-policy.md", "keywords": ["1 business hour"]}
+{"id": "q23", "question": "Can I cancel an order that already shipped?", "expected_source": "cancellation-policy.md", "keywords": ["cannot be cancelled"]}
+{"id": "q24", "question": "Is there a fee to cancel a freight order?", "expected_source": "cancellation-policy.md", "keywords": ["$45"]}
+{"id": "q25", "question": "Do you price match marketplace sellers?", "expected_source": "price-match-policy.md", "keywords": ["excluded"]}
+{"id": "q26", "question": "What steering wheel sizes does the cover fit?", "expected_source": "manual-steering-wheel-cover.md", "keywords": ["14.5"]}
+{"id": "q27", "question": "The steering wheel cover will not stretch over my wheel", "expected_source": "manual-steering-wheel-cover.md", "keywords": ["15.5"]}
+{"id": "q28", "question": "Dash cam shows an overheating warning", "expected_source": "manual-dash-cam.md", "keywords": ["65"]}
+{"id": "q29", "question": "How many jump start attempts can I make in a row?", "expected_source": "manual-jump-starter.md", "keywords": ["3 attempts"]}
+{"id": "q30", "question": "Can I return brake pads after installing them?", "expected_source": "manual-brake-pads.md", "keywords": ["cannot be returned"]}

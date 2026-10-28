@@ -31,6 +31,15 @@ class KnowledgeService:
         self._store = PgVectorStore(self._conn, emb)
         self._llm = AnthropicLLM(settings.anthropic_api_key, settings.chat_model)
 
+    def close(self) -> None:
+        self._conn.close()
+
+    def __enter__(self) -> KnowledgeService:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
     async def ask(self, question: str) -> KnowledgeResult:
         if self._flavor == "sdk":
             return await SdkKnowledgeAgent(

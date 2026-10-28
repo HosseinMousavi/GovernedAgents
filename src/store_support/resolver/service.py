@@ -89,12 +89,11 @@ def build_app(settings: Settings) -> Starlette:
             agent=AgentIdentity(resolver_manifest.name, resolver_manifest.version),
         )
         _tokens[ctx.request_id] = raw
+        flavor = os.environ.get("KNOWLEDGE_FLAVOR", "langgraph")
         try:
-            knowledge = KnowledgeService(
-                settings, principal.tenant_id, flavor=os.environ.get("KNOWLEDGE_FLAVOR", "langgraph")
-            )  # type: ignore[arg-type]
-            agent = ResolverAgent(manifest=resolver_manifest, knowledge=_SyncKnowledge(knowledge), tools=tools)
-            result = await run_in_threadpool(agent.resolve, ctx, spec)
+            with KnowledgeService(settings, principal.tenant_id, flavor=flavor) as knowledge:  # type: ignore[arg-type]
+                agent = ResolverAgent(manifest=resolver_manifest, knowledge=_SyncKnowledge(knowledge), tools=tools)
+                result = await run_in_threadpool(agent.resolve, ctx, spec)
         finally:
             _tokens.pop(ctx.request_id, None)
         return JSONResponse({"request_id": ctx.request_id, **result.to_dict()})
@@ -104,12 +103,14 @@ def build_app(settings: Settings) -> Starlette:
             _raw, principal = _bearer(request, settings.token_signing_key)
         except TokenError as e:
             return JSONResponse({"error": str(e)}, status_code=401)
+        if kill_switch.engaged:
+            return JSONResponse({"error": "kill switch engaged"}, status_code=503)
         body = await request.json()
         ctx = RequestContext(
             principal=principal, request_id=uuid.uuid4().hex, agent=AgentIdentity("knowledge-agent", "1.0.0")
         )
-        with request_span(ctx):
-            res = await KnowledgeService(settings, principal.tenant_id).ask(str(body["question"]))
+        with request_span(ctx), KnowledgeService(settings, principal.tenant_id) as svc:
+            res = await svc.ask(str(body["question"]))
         return JSONResponse(
             {
                 "outcome": res.outcome.value,
@@ -160,7 +161,7 @@ class _SyncKnowledge:
 
 def main() -> None:
     configure_logging(level=logging.INFO)
-    settings = Settings.from_env()
+    settings = Settings.from_env(strict=True)
     configure_tracing(service_name=settings.otel_service_name, endpoint=settings.otel_endpoint)
     uvicorn.run(build_app(settings), host="0.0.0.0", port=8080)  # noqa: S104
 

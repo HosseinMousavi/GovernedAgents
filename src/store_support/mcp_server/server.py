@@ -108,7 +108,7 @@ def build_server(
 
 def main() -> None:
     configure_logging(level=logging.INFO)
-    settings = Settings.from_env()
+    settings = Settings.from_env(strict=True)
     pool = ConnectionPool(settings.database_url, min_size=1, max_size=5, open=True)
 
     @contextmanager

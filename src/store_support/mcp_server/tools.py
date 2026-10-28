@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from store_support.access import DenyReason, RequestContext, Scope, authorize_tool, required_scope, row_filter
 from store_support.mcp_server.audit import AuditLog
-from store_support.mcp_server.repo import Order, Repository
+from store_support.mcp_server.repo import Order, RefundConflictError, Repository
 from store_support.telemetry.tracing import tool_span
 
 
@@ -140,7 +140,12 @@ def issue_refund(ctx: RequestContext, repo: Repository, a: IssueRefundIn) -> dic
         raise ToolError("business_rule", "order already refunded")
     if a.amount_cents > o.total_cents:
         raise ToolError("business_rule", "refund exceeds order total")
-    rid = repo.issue_refund(order=o, amount_cents=a.amount_cents, reason=a.reason, approved_by=ctx.principal.subject_id)
+    try:
+        rid = repo.issue_refund(
+            order=o, amount_cents=a.amount_cents, reason=a.reason, approved_by=ctx.principal.subject_id
+        )
+    except RefundConflictError as e:
+        raise ToolError("business_rule", "order already refunded") from e
     return {"refund_id": rid, "order_id": o.order_id, "amount_cents": a.amount_cents, "status": "refunded"}
 
 

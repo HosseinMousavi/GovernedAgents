@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections import deque
 from typing import Any
 
 import structlog
@@ -23,8 +24,11 @@ def pseudonymize(subject_id: str, *, salt: str = "ssa") -> str:
 
 
 class AuditLog:
-    def __init__(self) -> None:
-        self.entries: list[dict[str, Any]] = []
+    """In-memory ring buffer (for tests, evals and the /audit debug view) + structured log line.
+    The durable copy is the log stream (CloudWatch / docker logs), not this buffer."""
+
+    def __init__(self, max_entries: int = 10_000) -> None:
+        self.entries: deque[dict[str, Any]] = deque(maxlen=max_entries)
 
     def record(
         self,

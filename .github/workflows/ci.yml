@@ -6,6 +6,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: ssa, POSTGRES_PASSWORD: ssa, POSTGRES_DB: ssa }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U ssa" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ssa:ssa@localhost:5432/ssa
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,7 +23,7 @@ jobs:
         run: ruff check src tests
       - name: Unit tests (access rules, tools, agents, evals)
         run: pytest tests/unit --cov=store_support --cov-report=term-missing
-      - name: Integration (MCP over HTTP)
+      - name: Integration (MCP over HTTP + Postgres repository)
         run: pytest tests/integration
       - name: Offline evals -> scorecard (fails if governance metrics < 1.0)
         run: python -m store_support.evals.runner

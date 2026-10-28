@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import date
 
 from store_support.access import RowFilter
-from store_support.mcp_server.repo import Inventory, Order
+from store_support.mcp_server.repo import Inventory, Order, RefundConflictError
 
 
 class InMemoryRepository:
@@ -93,6 +93,10 @@ class InMemoryRepository:
         return aid
 
     def issue_refund(self, *, order: Order, amount_cents: int, reason: str, approved_by: str) -> str:
+        current = self._orders[order.order_id]  # re-read: the caller's snapshot may be stale
+        if current.refunded_cents != 0:
+            raise RefundConflictError(order.order_id)
+        order = current
         rid = f"RFD-{next(self._seq):05d}"
         self.refunds.append(
             {

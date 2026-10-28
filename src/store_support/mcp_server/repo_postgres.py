@@ -10,7 +10,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 
 from store_support.access import RowFilter
-from store_support.mcp_server.repo import Inventory, Order
+from store_support.mcp_server.repo import Inventory, Order, RefundConflictError
 
 
 def _id(prefix: str) -> str:
@@ -63,16 +63,26 @@ class PostgresRepository:
         return aid
 
     def issue_refund(self, *, order: Order, amount_cents: int, reason: str, approved_by: str) -> str:
+        """Atomic check-and-set: the UPDATE only matches when refunded_cents is still 0, so two
+        concurrent approvals cannot both succeed. Committed explicitly (pooled connections are
+        rolled back on return otherwise)."""
         rid = _id("RFD")
-        with self._conn.transaction():
-            self._conn.execute(
-                "INSERT INTO refunds (refund_id, tenant_id, order_id, amount_cents, reason, approved_by) "
-                "VALUES (%s,%s,%s,%s,%s,%s)",
-                [rid, order.tenant_id, order.order_id, amount_cents, reason, approved_by],
-            )
-            self._conn.execute(
-                "UPDATE orders SET status='refunded', refunded_cents = refunded_cents + %s "
-                "WHERE order_id=%s AND tenant_id=%s",
-                [amount_cents, order.order_id, order.tenant_id],
-            )
+        try:
+            with self._conn.transaction():
+                cur = self._conn.execute(
+                    "UPDATE orders SET status='refunded', refunded_cents = refunded_cents + %s "
+                    "WHERE order_id=%s AND tenant_id=%s AND refunded_cents = 0",
+                    [amount_cents, order.order_id, order.tenant_id],
+                )
+                if cur.rowcount != 1:
+                    raise RefundConflictError(order.order_id)
+                self._conn.execute(
+                    "INSERT INTO refunds (refund_id, tenant_id, order_id, amount_cents, reason, approved_by) "
+                    "VALUES (%s,%s,%s,%s,%s,%s)",
+                    [rid, order.tenant_id, order.order_id, amount_cents, reason, approved_by],
+                )
+            self._conn.commit()
+        except RefundConflictError:
+            self._conn.rollback()
+            raise
         return rid

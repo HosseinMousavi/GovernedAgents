@@ -256,3 +256,30 @@ def test_audit_records_denials_with_reason_code(repo, audit) -> None:
         )
     assert audit.entries[-1]["outcome"] == "denied"
     assert audit.entries[-1]["reason"] == "missing_scope"
+
+
+# ---------- refund atomicity (the repository, not the handler, is the authority) ----------
+
+
+def test_repository_refuses_second_refund_even_if_handler_check_is_bypassed(repo) -> None:
+    from store_support.access import RowFilter
+    from store_support.mcp_server.repo import RefundConflictError
+
+    order = repo.get_order(1042, RowFilter("store-a", None))
+    repo.issue_refund(order=order, amount_cents=100, reason="a", approved_by="m")
+    with pytest.raises(RefundConflictError):
+        # stale `order` snapshot (refunded_cents == 0) - simulates a concurrent second approval
+        repo.issue_refund(order=order, amount_cents=100, reason="b", approved_by="m")
+    assert len(repo.refunds) == 1
+
+
+def test_handler_maps_refund_conflict_to_business_rule(repo, audit) -> None:
+    from store_support.access import RowFilter
+
+    order = repo.get_order(1042, RowFilter("store-a", None))
+    repo.issue_refund(order=order, amount_cents=100, reason="a", approved_by="m")
+    with pytest.raises(ToolError) as e:
+        execute_tool(
+            ctx(manager), "issue_refund", {"order_id": 1042, "amount_cents": 1, "reason": "x"}, repo=repo, audit=audit
+        )
+    assert e.value.code == "business_rule"

@@ -64,7 +64,7 @@ own scopes; the audit row and the trace carry both.
 
 ```bash
 make install                # pip install -e ".[dev]"
-make test                   # 134 unit + integration tests, no services needed
+make test                   # 140 unit + integration tests, no services needed (Postgres tests skip)
 make eval                   # offline eval -> scorecard (zero network)
 python scripts/demo_offline.py   # the whole demo flow in-process
 
@@ -195,6 +195,14 @@ Details and the trade-offs in [`src/store_support/knowledge/COMPARISON.md`](src/
 with an ADOT sidecar exporting traces to X-Ray and logs to CloudWatch. Ollama is not deployed;
 `FallbackEmbedder` moves to OpenAI automatically. `git tag v0.1.0 && git push --tags` runs
 `deploy.yml`. See `infra/terraform/README.md`.
+
+## Independent review
+
+A separate reviewer audited tenant isolation, scope bypass, PII leakage and the kill switch after
+the build. Two real bugs were found and fixed with tests (`tests/unit/test_hardening.py`,
+`tests/integration/test_repo_postgres.py`): the Postgres refund was never committed on pooled
+connections, and two concurrent approvals could both refund (now an atomic conditional `UPDATE`).
+The one accepted limitation is documented in `n8n/README.md` (demo customer token).
 
 ## Development rules used here
 

@@ -1,7 +1,7 @@
 # Local stack. `make up` then open n8n at http://localhost:5678 and Jaeger at http://localhost:16686
 x-env: &env
   DATABASE_URL: postgresql://ssa:ssa@postgres:5432/ssa
-  TOKEN_SIGNING_KEY: ${TOKEN_SIGNING_KEY:-dev-only-change-me}
+  TOKEN_SIGNING_KEY: ${TOKEN_SIGNING_KEY:-local-compose-signing-key-change-me}   # services refuse the dev default
   KILL_SWITCH: ${KILL_SWITCH:-false}
   KILL_SWITCH_FILE: /shared/KILL
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

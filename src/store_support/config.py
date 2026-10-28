@@ -5,6 +5,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+DEV_KEY = "dev-only-change-me"
+
+
+class SettingsError(RuntimeError):
+    pass
+
 
 def _bool(v: str | None, default: bool = False) -> bool:
     return default if v is None else v.strip().lower() in {"1", "true", "yes", "on"}
@@ -26,11 +32,16 @@ class Settings:
     chat_model: str
 
     @classmethod
-    def from_env(cls) -> Settings:
+    def from_env(cls, *, strict: bool = False) -> Settings:
+        """strict=True (used by the long-running services) refuses to start with a missing or
+        default signing key - otherwise anyone could mint manager:refund tokens."""
         e = os.environ.get
+        key = e("TOKEN_SIGNING_KEY", DEV_KEY)
+        if strict and (key == DEV_KEY or len(key) < 16):
+            raise SettingsError("TOKEN_SIGNING_KEY must be set to a secret of at least 16 characters")
         return cls(
             database_url=e("DATABASE_URL", "postgresql://ssa:ssa@localhost:5432/ssa"),
-            token_signing_key=e("TOKEN_SIGNING_KEY", "dev-only-change-me"),
+            token_signing_key=key,
             kill_switch=_bool(e("KILL_SWITCH")),
             anthropic_api_key=e("ANTHROPIC_API_KEY", ""),
             openai_api_key=e("OPENAI_API_KEY", ""),

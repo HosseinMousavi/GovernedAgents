@@ -58,11 +58,16 @@ def _identity_attrs(ctx: RequestContext) -> dict[str, Any]:
 
 @contextmanager
 def _span(name: str, attrs: dict[str, Any]) -> Iterator[trace.Span]:
-    with _tracer.start_as_current_span(name, attributes=attrs) as span:
+    with _tracer.start_as_current_span(
+        name, attributes=attrs, record_exception=False, set_status_on_exception=False
+    ) as span:
         try:
             yield span
         except Exception as e:
-            span.record_exception(e)
+            # Deliberately NOT span.record_exception(): it attaches the raw message and a stack
+            # trace, both of which can carry PII. Type + redacted message is enough to debug.
+            span.set_attribute("error.type", type(e).__name__)
+            span.set_attribute("error.message", redact_text(str(e))[:200])
             span.set_status(Status(StatusCode.ERROR, type(e).__name__))
             raise
 

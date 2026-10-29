@@ -33,8 +33,8 @@ down:
 drift:
 	python -m store_support.evals.drift
 
-tokens:
-	python scripts/tokens.py
+tokens:   # signs with TOKEN_SIGNING_KEY from .env so tokens match the running containers
+	@set -a; [ -f .env ] && . ./.env; set +a; python scripts/tokens.py
 
 demo:
 	./scripts/demo.sh

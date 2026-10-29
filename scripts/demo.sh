@@ -3,6 +3,7 @@
 set -euo pipefail
 AGENTS=${AGENTS_URL:-http://localhost:8080}
 MCP=${MCP_SERVER_URL:-http://localhost:8765/mcp}
+set -a; [ -f .env ] && . ./.env; set +a      # same signing key as the containers
 eval "$(python scripts/tokens.py)"
 j() { python -c 'import json,sys; print(json.dumps(json.load(sys.stdin), indent=2))'; }
 

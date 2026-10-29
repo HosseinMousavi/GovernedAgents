@@ -247,7 +247,18 @@ make compare-routing     # live stack: all_default vs routed vs all_cheap on the
 ```
 
 prints a table of avg cost/question, tokens, faithfulness and retrieval hit rate per policy (saved to
-`eval_results/routing_comparison.json`) - the evidence for choosing `routed` as the default.
+`eval_results/routing_comparison.json`). Measured on the live stack (pgvector + Ollama BGE-M3 + Claude), 30 questions:
+
+| policy | avg cost / question | avg tokens | faithfulness | retrieval hit | context compaction |
+|---|---|---|---|---|---|
+| all_default (Sonnet everywhere) | $0.0050 | 1212 | 0.95 | 1.00 | 76% |
+| **routed** (Haiku for grade/rewrite/filter, Sonnet answer, Opus on retry) | **$0.0026 (-46%)** | 1220 | 0.97 | 1.00 | 77% |
+| all_cheap (Haiku everywhere) | $0.0018 (-64%) | 1229 | 0.97 | 1.00 | 77% |
+
+Tokens are flat across policies: the saving is routing, not shorter prompts. `routed` is the default
+because the deterministic faithfulness metric is coarse (citation validity + a labelled fact); the
+strong-tier upgrade on retries buys headroom on questions the first attempt struggles with, and the
+DeepEval tier is where answer-quality differences between tiers would show.
 
 ## LangGraph vs Claude Agent SDK
 

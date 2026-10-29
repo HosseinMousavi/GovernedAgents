@@ -95,9 +95,8 @@ def main(
         eval_strategy="epoch",
         save_strategy="no",
         bf16=device == "cuda",
-        use_mps_device=device == "mps",
         report_to=[],
-        warmup_ratio=0.05,
+        warmup_steps=10,
         lr_scheduler_type="cosine",
     )
     t0 = time.time()

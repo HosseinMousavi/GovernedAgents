@@ -72,7 +72,7 @@ python scripts/demo_offline.py   # the whole demo flow in-process
 cp .env.example .env        # add ANTHROPIC_API_KEY (and OPENAI_API_KEY for embedding fallback)
 make up                     # postgres+pgvector (host port 5433), ollama (pulls bge-m3), n8n, jaeger, mcp, agents
 make tokens >> .env         # demo tokens for n8n; then `docker compose up -d n8n` again
-make demo                   # scripts/demo.sh against the live stack
+make demo                   # scripts/demo.sh against the live stack; `make reset-demo` to run it again
 ```
 
 Docker Desktop needs **at least 6 GB** of memory for the full stack (Ollama's BGE-M3 alone is ~1.1 GB;

@@ -41,3 +41,6 @@ demo:
 
 demo-offline:
 	python scripts/demo_offline.py
+
+reset-demo:   # put order 1042 back to "delivered 2 days ago, not refunded" so `make demo` can run again
+	docker compose exec -T postgres psql -U ssa -d ssa -c "UPDATE orders SET ordered_on = CURRENT_DATE - 2, status='delivered', refunded_cents=0 WHERE order_id=1042; DELETE FROM refunds WHERE order_id=1042;"

@@ -75,3 +75,38 @@ def test_person_and_location_redacted_when_presidio_available() -> None:
     out = redact_text("Jane Doe in Chicago ordered SKU-001, order 1042")
     assert "Jane" not in out and "Chicago" not in out
     assert "SKU-001" in out and "1042" in out
+
+
+# ---------- structured audit keys are identifiers, not free text (regression from live run) ----------
+
+
+def test_structured_keys_are_not_redacted() -> None:
+    event = {
+        "event": "tool_call",
+        "agent": "resolver-agent@1.0.0",
+        "scopes": ["customer:read_own", "manager:refund"],
+        "tool": "lookup_order",
+        "tenant": "store-a",
+        "subject": "u_aa223ddc7062",
+        "detail": "contact jane@example.com",
+    }
+    out = redact_event(None, "info", dict(event))
+    assert out["agent"] == "resolver-agent@1.0.0"
+    assert out["scopes"] == ["customer:read_own", "manager:refund"]
+    assert out["tool"] == "lookup_order"
+    assert "jane@example.com" not in out["detail"]
+
+
+def test_agent_version_string_is_not_an_email() -> None:
+    assert redact_text("resolver-agent@1.0.0 called lookup_order") == "resolver-agent@1.0.0 called lookup_order"
+
+
+def test_warm_up_is_idempotent_and_fast_after_first_call() -> None:
+    import time
+
+    from store_support.governance.redaction import warm_up
+
+    warm_up()
+    t = time.perf_counter()
+    warm_up()
+    assert time.perf_counter() - t < 0.5

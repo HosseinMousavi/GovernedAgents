@@ -15,7 +15,8 @@ from functools import lru_cache
 from typing import Any
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("EMAIL_ADDRESS", re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")),
+    # local@domain.tld - the TLD must be alphabetic so "agent@1.0.0" (name@version) is not an email
+    ("EMAIL_ADDRESS", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b")),
     ("CREDIT_CARD", re.compile(r"\b(?:\d[ -]?){13,19}\b")),
     ("US_SSN", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
     ("PHONE_NUMBER", re.compile(r"(?:\+?1[ -.]?)?(?:\(\d{3}\)|\d{3})[ -.]?\d{3}[ -.]?\d{4}\b")),
@@ -86,6 +87,34 @@ def _walk(value: Any) -> Any:
     return value
 
 
+# Structured identifiers written by our own code (never customer-supplied text). Running NER on
+# them only produces false positives ("read_own" -> LOCATION), so they bypass redaction.
+STRUCTURED_KEYS: frozenset[str] = frozenset(
+    {
+        "agent",
+        "agent_name",
+        "agent_version",
+        "scopes",
+        "tool",
+        "tenant",
+        "subject",
+        "request_id",
+        "outcome",
+        "reason",
+        "event",
+        "level",
+        "timestamp",
+        "ts",
+        "logger",
+    }
+)
+
+
 def redact_event(_logger: Any, _method: str, event_dict: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
-    """structlog processor: redact every string anywhere in the event."""
-    return _walk(event_dict)  # type: ignore[no-any-return]
+    """structlog processor: redact every string in the event except structured identifier keys."""
+    return {k: (v if k in STRUCTURED_KEYS else _walk(v)) for k, v in event_dict.items()}
+
+
+def warm_up() -> None:
+    """Load the NER model now rather than on the first request (cold start can exceed client timeouts)."""
+    redact_text("warm up: jane@example.com 312-555-0147")

@@ -29,6 +29,7 @@ from store_support.config import Settings
 from store_support.governance.kill_switch import KillSwitch
 from store_support.governance.logging_setup import configure_logging
 from store_support.governance.manifest import load_all, load_manifest
+from store_support.governance.redaction import warm_up
 from store_support.intake.schema import IssueSpec, missing_fields, validate_spec
 from store_support.knowledge.factory import KnowledgeService
 from store_support.resolver.agent import ResolverAgent
@@ -161,6 +162,7 @@ class _SyncKnowledge:
 
 def main() -> None:
     configure_logging(level=logging.INFO)
+    warm_up()
     settings = Settings.from_env(strict=True)
     configure_tracing(service_name=settings.otel_service_name, endpoint=settings.otel_endpoint)
     uvicorn.run(build_app(settings), host="0.0.0.0", port=8080)  # noqa: S104

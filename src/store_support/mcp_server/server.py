@@ -24,6 +24,7 @@ from store_support.access import AgentIdentity, RequestContext, TokenError, pars
 from store_support.config import Settings
 from store_support.governance.kill_switch import KillSwitch
 from store_support.governance.logging_setup import configure_logging
+from store_support.governance.redaction import warm_up
 from store_support.mcp_server.audit import AuditLog
 from store_support.mcp_server.repo import Repository
 from store_support.mcp_server.repo_postgres import PostgresRepository
@@ -108,6 +109,7 @@ def build_server(
 
 def main() -> None:
     configure_logging(level=logging.INFO)
+    warm_up()
     settings = Settings.from_env(strict=True)
     pool = ConnectionPool(settings.database_url, min_size=1, max_size=5, open=True)
 

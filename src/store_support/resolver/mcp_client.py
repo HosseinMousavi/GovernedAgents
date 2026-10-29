@@ -34,7 +34,7 @@ class McpToolClient:
             "X-Agent-Version": ctx.agent.version,
             "X-Request-Id": ctx.request_id,
         }
-        async with httpx.AsyncClient(headers=headers, timeout=30) as http:
+        async with httpx.AsyncClient(headers=headers, timeout=60) as http:
             async with streamable_http_client(self._url, http_client=http) as (r, w, *_):
                 async with ClientSession(r, w) as s:
                     await s.initialize()

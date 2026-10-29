@@ -14,12 +14,12 @@ jobs:
         options: --health-cmd "pg_isready -U ssa" --health-interval 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://ssa:ssa@localhost:5432/ssa
+      SPACY_MODEL: en_core_web_sm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - run: pip install -e ".[dev,pii]" && python -m spacy download en_core_web_sm
-        env: { SPACY_MODEL: en_core_web_sm }
       - name: Lint
         run: ruff check src tests
       - name: Unit tests (access rules, tools, agents, evals)

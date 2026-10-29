@@ -133,3 +133,28 @@ def test_empty_store_escalates_without_calling_llm() -> None:
     assert out.outcome == Outcome.ESCALATED
     assert out.reason == "no_context"
     assert llm.grade_calls == 0
+
+
+# ---------- context compaction + cost accounting ----------
+
+
+def test_compaction_runs_before_generation_and_shrinks_context(store: InMemoryVectorStore) -> None:
+    llm = FakeLLM(grades=[0.9], keep=[0], answer="ok [manual-steering-wheel-cover.md#Fitment]")
+    out = _agent(store, llm).run("my steering wheel cover arrived damaged, what can I do?")
+    assert llm.filter_calls == 1
+    assert len(out.hits) == 4  # retrieved (k=4)
+    assert len(out.hits_used) == 1  # sent to the answer model
+    assert out.outcome == Outcome.ANSWERED
+
+
+def test_citation_validation_uses_retrieved_hits_not_only_compacted(store: InMemoryVectorStore) -> None:
+    """A citation to a retrieved-but-filtered chunk is still a real chunk: accept it, do not escalate."""
+    llm = FakeLLM(grades=[0.9], keep=[1], answer="ok [manual-steering-wheel-cover.md#Fitment]")
+    out = _agent(store, llm).run("my steering wheel cover arrived damaged, what can I do?")
+    assert out.outcome == Outcome.ANSWERED
+
+
+def test_result_carries_usage_and_cost_fields(store: InMemoryVectorStore) -> None:
+    llm = FakeLLM(grades=[0.9], answer="ok [manual-steering-wheel-cover.md#Fitment]")
+    out = _agent(store, llm).run("steering wheel cover damaged")
+    assert out.cost_usd == 0.0 and out.usage.total_tokens == 0 and out.models == []

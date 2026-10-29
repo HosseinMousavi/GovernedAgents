@@ -77,6 +77,9 @@ def main() -> None:
     amount = f"${res.amount_cents / 100:.2f}"
     print(f"  proposal : {res.action.value}  amount={amount}  requires_manager={res.requires_manager}")
     print("  ticket   :", res.ticket_id)
+    print(
+        f"  cost     : ${res.cost_usd:.4f}  tokens={res.usage.total_tokens}  models={res.models or ['(offline: none)']}"
+    )
 
     banner(3, "Customer tries issue_refund directly -> denied")
     try:

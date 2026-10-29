@@ -149,7 +149,7 @@
     {
       "parameters": {
         "assignments": {"assignments": [{"id": "a1", "name": "output", "type": "string",
-          "value": "={{ $json.answer ? $json.answer + '\\n\\n' : '' }}Proposed: {{ $json.action }}{{ $json.amount_cents ? ' ($' + ($json.amount_cents/100).toFixed(2) + ')' : '' }}. {{ $json.rationale }}{{ $json.ticket_id ? ' Ticket ' + $json.ticket_id + ' created.' : '' }}{{ $json.requires_manager ? ' A manager will review this now.' : '' }}"}]},
+          "value": "={{ $json.answer ? $json.answer + '\\n\\n' : '' }}Proposed: {{ $json.action }}{{ $json.amount_cents ? ' ($' + ($json.amount_cents/100).toFixed(2) + ')' : '' }}. {{ $json.rationale }}{{ $json.ticket_id ? ' Ticket ' + $json.ticket_id + ' created.' : '' }}{{ $json.requires_manager ? ' A manager will review this now.' : '' }} (LLM cost ${{ ($json.cost_usd || 0).toFixed(4) }})"}]},
         "options": {}
       },
       "id": "compose-reply",

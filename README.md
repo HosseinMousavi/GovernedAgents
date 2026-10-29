@@ -21,6 +21,9 @@ switch stops all tool execution at once.
 | Kill switch | `KILL_SWITCH=true` or `touch /tmp/ssa.KILL` | MCP server + SDK `PreToolUse` hook |
 | Money needs a human | Resolver *proposes*; only a `manager:refund` token can `issue_refund` | Scope check + n8n approval |
 | Answers only from context | Grader + citation validator; otherwise escalate | `knowledge/pipeline.py` |
+| Cost: which model runs what | `governance/routing.py` `route()` (pure) from task + signals + budget | `RoutedAnthropicLLM`, every call |
+| Cost: how much was spent | Token usage -> USD per call, per request, per tenant per day | spans, `Resolution.cost_usd`, `CostLedger` |
+| Cost: a ceiling | Per-tenant daily budget: soft -> cheap tier only; hard -> escalate to a human | `Budget` + `BudgetExhaustedError` |
 
 ## Architecture
 
@@ -105,7 +108,8 @@ src/store_support/
                  embeddings.py (Ollama -> OpenAI fallback), store.py (pgvector), chunking.py, ingest.py
   resolver/      rules.py (pure decisions), agent.py, service.py (HTTP for n8n), mcp_client.py
   intake/        schema.py (IssueSpec JSON schema + validation)
-  governance/    manifest.py, kill_switch.py, redaction.py (Presidio), logging_setup.py
+  governance/    manifest.py, kill_switch.py, redaction.py (Presidio), logging_setup.py,
+                 routing.py (model tiers, pure), cost.py (prices, usage, ledger, budget)
   telemetry/     tracing.py (OTel: request > step.* > tool.*)
   evals/         datasets/ (30 questions, 20 scenarios), metrics.py, runner.py, drift.py
   data/          seed.py (Faker: 2 tenants, 200 customers, 50 SKUs, 500 orders)
@@ -207,6 +211,43 @@ memory: { kind: session, ttl_minutes: 30 }
 
 `load_all()` validates it, `/manifests` serves it, and `ResolverAgent.call_tool` refuses any tool
 not in the list.
+
+## Cost optimization & model routing
+
+Every LLM call goes through `RoutedAnthropicLLM`, which asks a pure function which model tier should run it:
+
+| Task | Tier (policy `routed`) | Why |
+|---|---|---|
+| grade the retrieved context | **cheap** (Haiku) | structured JSON output, high volume |
+| rewrite the query | **cheap** | short, structured |
+| filter chunks (context compaction) | **cheap** | returns a list of indices |
+| answer, well-graded context | **default** (Sonnet) | customer-facing |
+| answer after a retry, or on a borderline grade | **strong** (Opus) | spend more only where the first attempt struggled |
+| anything, once the tenant's soft daily budget is spent | **cheap** (degraded) | keep serving, cheaper |
+| anything, once the hard daily budget is spent | refused -> `escalate: budget_exhausted` | a person follows up |
+
+Tiers come from the agent manifest (`agents/knowledge-agent/manifest.yaml`: `model` + `models: {cheap, strong}`),
+the policy from `ROUTING_POLICY` (`routed | all_default | all_cheap`), budgets from `BUDGET_SOFT_USD_PER_DAY` /
+`BUDGET_HARD_USD_PER_DAY`.
+
+Four things make a request cheaper by construction:
+
+1. **Context compaction** - a cheap filter call keeps only the relevant chunks before the answer model sees them
+   (`step.compact`; the scorecard reports the compaction rate). This also lifted DeepEval's *contextual
+   relevancy*, which was the weakest judged metric at the baseline (0.29 mean with k=5, no compaction).
+2. **Prompt caching** - the system prompt and the retrieved-context block carry `cache_control`, so
+   grade -> filter -> answer on the same context pays for that context once.
+3. **Routing** - helper calls (3 of 4 per request) run on the cheap tier.
+4. **Accounting you can act on** - every span carries `llm.model`, `llm.tier`, `llm.route_reason`,
+   `llm.input_tokens`, `llm.cache_read_tokens`, `llm.cost_usd`; every `/resolve` response carries `cost_usd`,
+   `tokens` and `models`; the `llm_call` log line sums by tenant in CloudWatch Insights.
+
+```bash
+make compare-routing     # live stack: all_default vs routed vs all_cheap on the 30 questions
+```
+
+prints a table of avg cost/question, tokens, faithfulness and retrieval hit rate per policy (saved to
+`eval_results/routing_comparison.json`) - the evidence for choosing `routed` as the default.
 
 ## LangGraph vs Claude Agent SDK
 

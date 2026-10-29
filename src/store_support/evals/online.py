@@ -44,6 +44,14 @@ def run_online() -> dict[str, Any]:
             "tool_choice_accuracy": offline["metrics"]["tool_choice_accuracy"],
             "scope_enforcement": offline["metrics"]["scope_enforcement"],
         },
+        "cost": {
+            "avg_cost_usd": round(sum(r["cost_usd"] for r in rows) / max(1, len(rows)), 6),
+            "avg_tokens": round(sum(r["tokens"] for r in rows) / max(1, len(rows)), 1),
+            "avg_context_compaction": round(
+                _mean([1 - r["context_used"] / r["context_chunks"] for r in rows if r["context_chunks"]]), 3
+            ),
+        },
+        "policy": settings.routing_policy,
         "questions": rows,
         "scenarios": offline["scenarios"],
     }

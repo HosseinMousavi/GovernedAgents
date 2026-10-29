@@ -11,6 +11,9 @@ x-env: &env
   MCP_SERVER_URL: http://mcp:8765/mcp
   OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
   CHAT_MODEL: ${CHAT_MODEL:-claude-sonnet-4-5}
+  ROUTING_POLICY: ${ROUTING_POLICY:-routed}
+  BUDGET_SOFT_USD_PER_DAY: ${BUDGET_SOFT_USD_PER_DAY:-5}
+  BUDGET_HARD_USD_PER_DAY: ${BUDGET_HARD_USD_PER_DAY:-10}
   DEV_TOKENS: "true"
   SPACY_MODEL: en_core_web_sm       # memory: lg model x2 containers + Ollama exceeded a 4 GB Docker VM
 

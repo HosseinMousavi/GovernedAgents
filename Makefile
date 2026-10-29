@@ -47,3 +47,6 @@ demo-offline:
 
 reset-demo:   # put order 1042 back to "delivered 2 days ago, not refunded" so `make demo` can run again
 	docker compose exec -T postgres psql -U ssa -d ssa -c "UPDATE orders SET ordered_on = CURRENT_DATE - 2, status='delivered', refunded_cents=0 WHERE order_id=1042; DELETE FROM refunds WHERE order_id=1042;"
+
+compare-routing:   # live stack: all_default vs routed vs all_cheap on the 30 questions -> cost/quality table
+	@set -a; [ -f .env ] && . ./.env; set +a; python scripts/compare_routing.py

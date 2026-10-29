@@ -29,6 +29,7 @@ class AgentManifest(BaseModel):
     description: str = ""
     owner: str
     model: str
+    models: dict[str, str] = Field(default_factory=dict)  # optional {cheap, strong} tiers; `model` is the default
     runtime: str = "python"
     tools: list[str] = Field(default_factory=list)
     memory: Memory = Field(default_factory=Memory)

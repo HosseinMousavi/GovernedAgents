@@ -24,6 +24,7 @@ import typer
 
 from store_support.access import AgentIdentity, Principal, RequestContext, Scope
 from store_support.evals.metrics import faithfulness, retrieval_hit, scope_enforced, tool_choice
+from store_support.governance.cost import Usage
 from store_support.governance.manifest import load_manifest
 from store_support.intake.schema import IssueSpec
 from store_support.knowledge.chunking import chunk_markdown
@@ -85,10 +86,18 @@ class ExtractiveLLM:
     def rewrite(self, question: str, previous: Sequence[str]) -> str:
         return question + " policy refund return warranty shipping"
 
-    def answer(self, question: str, hits: Sequence[Hit]) -> str:
+    def filter(self, question: str, hits: Sequence[Hit]) -> list[Hit]:
+        """Keep the top-3 by overlap (offline stand-in for the cheap filter model)."""
+        ranked = sorted(hits, key=lambda h: self._overlap(question, h.content), reverse=True)
+        return ranked[:3]
+
+    def answer(self, question: str, hits: Sequence[Hit], *, attempt: int = 0, last_score: float | None = None) -> str:
         best = max(hits, key=lambda h: self._overlap(question, h.content))
         body = best.content.split("\n", 1)[-1][:400]
         return f"{body} {best.citation}"
+
+    def drain_usage(self) -> tuple[Usage, float, list[str]]:
+        return Usage(), 0.0, []
 
 
 def _principal(p: dict[str, Any]) -> Principal:
@@ -193,7 +202,17 @@ def run_offline(*, out_dir: Path | None = None, threshold: float = 0.3) -> dict[
         hit = retrieval_hit(res.hits, q.expected_source)
         faith = faithfulness(res.answer, res.citations, res.hits, q.keywords)
         q_rows.append(
-            {"id": q.id, "hit": hit, "faithfulness": faith, "outcome": res.outcome.value, "retries": res.retries}
+            {
+                "id": q.id,
+                "hit": hit,
+                "faithfulness": faith,
+                "outcome": res.outcome.value,
+                "retries": res.retries,
+                "cost_usd": res.cost_usd,
+                "tokens": res.usage.total_tokens,
+                "context_chunks": len(res.hits),
+                "context_used": len(res.hits_used),
+            }
         )
 
     manifest = load_manifest(ROOT / "agents" / "resolver-agent" / "manifest.yaml")
@@ -244,6 +263,13 @@ def run_offline(*, out_dir: Path | None = None, threshold: float = 0.3) -> dict[
             "tool_choice_accuracy": _mean([r["tools_ok"] and r["action_ok"] for r in s_rows]),
             "scope_enforcement": _mean([r["scope_ok"] for r in s_rows]),
         },
+        "cost": {
+            "avg_cost_usd": round(sum(r["cost_usd"] for r in q_rows) / max(1, len(q_rows)), 6),
+            "avg_tokens": round(sum(r["tokens"] for r in q_rows) / max(1, len(q_rows)), 1),
+            "avg_context_compaction": round(
+                _mean([1 - r["context_used"] / r["context_chunks"] for r in q_rows if r["context_chunks"]]), 3
+            ),
+        },
         "questions": q_rows,
         "scenarios": s_rows,
     }
@@ -279,6 +305,12 @@ def print_scorecard(card: dict[str, Any]) -> None:
     ]:
         flag = "ok " if m[k] >= target else "LOW"
         print(f"{k:<24}{m[k]:>8.3f}   >= {target:.2f}  {flag}")
+    c = card.get("cost", {})
+    if c:
+        print(
+            f"\navg cost/question ${c['avg_cost_usd']:.4f}   avg tokens {c['avg_tokens']:.0f}   "
+            f"context compaction {c['avg_context_compaction']:.0%}"
+        )
     misses = [r["id"] for r in card["questions"] if not r["hit"]]
     bad = [r["id"] for r in card["scenarios"] if not (r["tools_ok"] and r["action_ok"] and r["scope_ok"])]
     print(f"\nquestions: {card['n_questions']}  retrieval misses: {misses or 'none'}")

@@ -152,3 +152,28 @@ def test_resolver_on_foreign_order_escalates_without_leaking(world) -> None:
     assert res.action == Action.ESCALATE
     assert res.reason == "not_found"
     assert "cust-0002" not in str(res)
+
+
+# ---------- cost surfaces + budget exhaustion ----------
+
+
+def test_resolution_carries_knowledge_cost(world) -> None:
+    agent, ctx, *_ = world
+    res = agent.resolve(ctx, spec())
+    assert res.cost_usd == 0.0 and res.models == [] and res.to_dict()["cost_usd"] == 0.0
+
+
+def test_hard_budget_escalates_to_human_instead_of_failing(world) -> None:
+    from store_support.knowledge.llm import BudgetExhaustedError
+
+    agent, ctx, audit, repo = world
+
+    class Broke:
+        def run(self, q):  # noqa: ANN001, ANN202
+            raise BudgetExhaustedError("tenant daily budget exhausted")
+
+    agent.knowledge = Broke()
+    res = agent.resolve(ctx, spec())
+    assert res.action == Action.ESCALATE
+    assert res.reason == "budget_exhausted"
+    assert [e["tool"] for e in audit.entries] == []  # no tool calls once we know we must hand off

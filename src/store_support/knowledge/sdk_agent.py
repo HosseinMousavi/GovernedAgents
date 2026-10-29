@@ -89,12 +89,17 @@ class SdkKnowledgeAgent:
         return {"search_policies": search_policies, "grade_context": grade_context, "escalate": escalate}
 
     def finalize(self, final_text: str, budget: RetrievalBudget) -> p.KnowledgeResult:
+        usage, cost, models = self.llm.drain_usage()
         res = p.KnowledgeResult(
             outcome=p.Outcome.ESCALATED,
             retries=max(0, budget.searches - 1),
             queries=budget.queries,
             scores=budget.scores,
             hits=budget.last_hits,
+            hits_used=budget.last_hits,
+            usage=usage,
+            cost_usd=cost,
+            models=models,
         )
         if budget.escalated_reason:
             res.reason = budget.escalated_reason

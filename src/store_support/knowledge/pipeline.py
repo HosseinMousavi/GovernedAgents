@@ -1,6 +1,6 @@
 """The knowledge loop as plain, framework-free steps.
 
-    retrieve -> grade -> (score >= threshold ? answer : rewrite -> retrieve ...)
+    retrieve -> grade -> (score >= threshold ? compact -> answer : rewrite -> retrieve ...)
     after `max_retries` rewrites with no good context -> ESCALATE (human)
     answer with no citation / unknown citation / INSUFFICIENT_CONTEXT -> ESCALATE
 
@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from store_support.governance.cost import Usage  # re-exported for langgraph_agent
 from store_support.knowledge.llm import LLM
 from store_support.knowledge.store import Hit, VectorStore
 from store_support.telemetry.tracing import step_span
@@ -43,7 +44,11 @@ class KnowledgeResult:
     retries: int = 0
     queries: list[str] = field(default_factory=list)
     scores: list[float] = field(default_factory=list)
-    hits: list[Hit] = field(default_factory=list)
+    hits: list[Hit] = field(default_factory=list)  # retrieved (top-k)
+    hits_used: list[Hit] = field(default_factory=list)  # after compaction: what the answer model saw
+    usage: Usage = field(default_factory=Usage)
+    cost_usd: float = 0.0
+    models: list[str] = field(default_factory=list)
 
 
 # ---------- pure steps ----------
@@ -66,9 +71,23 @@ def rewrite(llm: LLM, question: str, previous: Sequence[str]) -> str:
         return llm.rewrite(question, previous).strip()
 
 
-def generate(llm: LLM, question: str, hits: Sequence[Hit]) -> str:
-    with step_span("generate", agent=AGENT_NAME):
-        return llm.answer(question, hits).strip()
+def compact(llm: LLM, question: str, hits: Sequence[Hit]) -> list[Hit]:
+    """Keep only the chunks the (cheap) filter model marks relevant: fewer tokens to the answer
+    model and a cleaner context for it to cite from."""
+    with step_span("compact", agent=AGENT_NAME, attributes={"n_in": len(hits)}) as s:
+        kept = llm.filter(question, hits)
+        s.set_attribute("n_out", len(kept))
+        return kept
+
+
+def generate(llm: LLM, question: str, hits: Sequence[Hit], *, attempt: int = 0, last_score: float | None = None) -> str:
+    with step_span("generate", agent=AGENT_NAME, attributes={"attempt": attempt}):
+        return llm.answer(question, hits, attempt=attempt, last_score=last_score).strip()
+
+
+def finalize_usage(llm: LLM, res: KnowledgeResult) -> KnowledgeResult:
+    res.usage, res.cost_usd, res.models = llm.drain_usage()
+    return res
 
 
 def validate_answer(answer: str, hits: Sequence[Hit]) -> tuple[list[Citation], str | None]:
@@ -106,20 +125,21 @@ class KnowledgeAgent:
             hits = retrieve(self.store, self.tenant_id, query, k=self.k)
             if not hits:
                 res.reason = "no_context"
-                return res
+                return finalize_usage(self.llm, res)
             score = grade(self.llm, question, hits)
             res.scores.append(score)
             if score >= self.threshold:
                 res.hits = hits
-                answer = generate(self.llm, question, hits)
+                res.hits_used = compact(self.llm, question, hits)
+                answer = generate(self.llm, question, res.hits_used, attempt=res.retries, last_score=score)
                 cites, reason = validate_answer(answer, hits)
                 if reason:
                     res.reason = reason
-                    return res
+                    return finalize_usage(self.llm, res)
                 res.outcome, res.answer, res.citations = Outcome.ANSWERED, answer, cites
-                return res
+                return finalize_usage(self.llm, res)
             if res.retries >= self.max_retries:
                 res.reason = "low_relevance"
-                return res
+                return finalize_usage(self.llm, res)
             res.retries += 1
             query = rewrite(self.llm, question, res.queries)

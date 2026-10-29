@@ -13,8 +13,10 @@ from datetime import date
 from typing import Any, Protocol
 
 from store_support.access import RequestContext
+from store_support.governance.cost import Usage
 from store_support.governance.manifest import AgentManifest
 from store_support.intake.schema import IssueSpec
+from store_support.knowledge.llm import BudgetExhaustedError
 from store_support.knowledge.pipeline import Citation, KnowledgeAgent, Outcome
 from store_support.mcp_server.audit import AuditLog
 from store_support.mcp_server.repo import Repository
@@ -52,6 +54,9 @@ class Resolution:
     order: dict[str, Any] | None = None
     ticket_id: str | None = None
     reason: str | None = None  # escalation reason code
+    cost_usd: float = 0.0  # LLM spend for this resolution (knowledge agent)
+    usage: Usage = field(default_factory=Usage)
+    models: list[str] = field(default_factory=list)  # models used, in call order
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -64,6 +69,9 @@ class Resolution:
             "order": self.order,
             "ticket_id": self.ticket_id,
             "reason": self.reason,
+            "cost_usd": round(self.cost_usd, 6),
+            "tokens": self.usage.total_tokens,
+            "models": self.models,
         }
 
 
@@ -88,10 +96,18 @@ class ResolverAgent:
         product = f" ({spec.product_hint})" if spec.product_hint else ""
         question = f"{spec.category} item{product}, customer wants {spec.desired_outcome}: {spec.description}"
 
-        with step_span("knowledge", agent=self.manifest.name):
-            k = self.knowledge.run(question)
+        try:
+            with step_span("knowledge", agent=self.manifest.name):
+                k = self.knowledge.run(question)
+        except BudgetExhaustedError:
+            return Resolution(
+                Action.ESCALATE,
+                reason="budget_exhausted",
+                rationale="LLM budget for this store is spent today; a person will follow up",
+            )
         answer = k.answer if k.outcome == Outcome.ANSWERED else ""
         citations = list(k.citations) if k.outcome == Outcome.ANSWERED else []
+        cost = (getattr(k, "cost_usd", 0.0), getattr(k, "usage", Usage()), list(getattr(k, "models", [])))
 
         try:
             order = self.call_tool(ctx, "lookup_order", {"order_id": spec.order_id})
@@ -103,6 +119,9 @@ class ResolverAgent:
                 citations=citations,
                 reason=e.code,
                 rationale="could not verify the order for this customer",
+                cost_usd=cost[0],
+                usage=cost[1],
+                models=cost[2],
             )
 
         in_stock: bool | None = None
@@ -137,4 +156,7 @@ class ResolverAgent:
             citations,
             order={k2: v for k2, v in order.items() if k2 != "customer_id"},
             ticket_id=ticket_id,
+            cost_usd=cost[0],
+            usage=cost[1],
+            models=cost[2],
         )

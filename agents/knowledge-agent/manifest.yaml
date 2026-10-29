@@ -2,7 +2,10 @@ name: knowledge-agent
 version: 1.0.0
 description: Answers policy/manual questions from pgvector with citations; escalates when unsure.
 owner: support-platform@store.example
-model: claude-sonnet-4-5
+model: claude-sonnet-4-5      # default tier: the customer-facing answer
+models:
+  cheap: claude-haiku-4-5     # grade / rewrite / filter (structured helper work)
+  strong: claude-opus-4-1     # answer after a retry or on a borderline context grade
 runtime: python         # store_support.knowledge (langgraph | sdk)
 tools: []               # read-only RAG; no MCP business tools
 memory:

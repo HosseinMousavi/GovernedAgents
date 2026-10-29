@@ -125,7 +125,7 @@ def judge() -> Any:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY is required for the DeepEval (judged) tier")
-    return AnthropicModel(model=os.environ.get("DEEPEVAL_JUDGE_MODEL", "claude-sonnet-4-5"), api_key=key, temperature=0)
+    return AnthropicModel(model=os.environ.get("DEEPEVAL_JUDGE_MODEL", "claude-sonnet-4-5"), api_key=key)
 
 
 def knowledge_metrics(model: Any) -> list[Any]:

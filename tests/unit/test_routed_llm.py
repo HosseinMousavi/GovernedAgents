@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from store_support.governance.cost import Budget, CostLedger, Usage
+from store_support.governance.cost import Budget, CostLedger, Usage, estimate_cost
 from store_support.governance.routing import ModelTiers
 from store_support.knowledge.llm import BudgetExhaustedError, RoutedAnthropicLLM
 from store_support.knowledge.store import Hit
@@ -134,3 +134,39 @@ def test_policy_all_default_runs_everything_on_default() -> None:
     llm.grade("q", HITS)
     llm.answer("q", HITS, attempt=1)
     assert {k["model"] for k in c.calls} == {"claude-sonnet-4-5"}
+
+
+# ---------- local (LoRA) tier: ollama/<model> is dispatched to Ollama and costs $0 ----------
+
+
+@dataclass
+class StubOllama:
+    replies: dict[str, str] = field(default_factory=dict)
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def chat(self, *, model: str, system: str, user: str) -> tuple[str, Usage]:
+        self.calls.append({"model": model, "system": system, "user": user})
+        key = next((k for k in self.replies if k in system), "")
+        return self.replies.get(key, ""), Usage(input_tokens=300, output_tokens=10)
+
+
+def test_cheap_tier_can_be_a_local_ollama_model() -> None:
+    tiers = ModelTiers(cheap="ollama/ssa-grader", default="claude-sonnet-4-5", strong="claude-opus-4-1")
+    anthropic = StubClient(replies={"support assistant": "ok"})
+    local = StubOllama(replies={"grade": '{"score": 0.7}', "relevant": "[1]"})
+    llm = RoutedAnthropicLLM(client=anthropic, ollama=local, tiers=tiers, tenant_id="store-a")
+    assert llm.grade("q", HITS) == 0.7
+    assert [h.source for h in llm.filter("q", HITS)] == ["shipping-policy.md"]
+    llm.answer("q", HITS, attempt=0, last_score=0.9)
+    assert [c["model"] for c in local.calls] == ["ssa-grader", "ssa-grader"]
+    assert [c["model"] for c in anthropic.calls] == ["claude-sonnet-4-5"]
+    usage, cost, models = llm.drain_usage()
+    assert models == ["ollama/ssa-grader", "ollama/ssa-grader", "claude-sonnet-4-5"]
+    assert cost == pytest.approx(estimate_cost("claude-sonnet-4-5", Usage(input_tokens=1000, output_tokens=50)))
+
+
+def test_local_model_without_ollama_client_is_a_configuration_error() -> None:
+    tiers = ModelTiers(cheap="ollama/ssa-grader", default="claude-sonnet-4-5", strong="claude-opus-4-1")
+    llm = RoutedAnthropicLLM(client=StubClient(), tiers=tiers, tenant_id="store-a")
+    with pytest.raises(RuntimeError, match="ollama"):
+        llm.grade("q", HITS)

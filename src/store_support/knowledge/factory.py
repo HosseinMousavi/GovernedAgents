@@ -13,7 +13,7 @@ from store_support.governance.manifest import load_manifest
 from store_support.governance.routing import ModelTiers
 from store_support.knowledge.embeddings import default_embedder
 from store_support.knowledge.langgraph_agent import build_graph, run_graph
-from store_support.knowledge.llm import RoutedAnthropicLLM
+from store_support.knowledge.llm import LOCAL_PREFIX, OllamaChat, RoutedAnthropicLLM
 from store_support.knowledge.pipeline import KnowledgeResult
 from store_support.knowledge.sdk_agent import SdkKnowledgeAgent
 from store_support.knowledge.store import PgVectorStore
@@ -36,7 +36,11 @@ class KnowledgeService:
         )
         self._store = PgVectorStore(self._conn, emb)
         manifest = load_manifest(_AGENTS / "knowledge-agent" / "manifest.yaml")
-        tiers = ModelTiers.from_manifest({"model": settings.chat_model, "models": manifest.models})
+        models = dict(manifest.models)
+        if settings.cheap_model:  # env override, e.g. CHEAP_MODEL=ollama/ssa-grader after `make lora-serve`
+            models["cheap"] = settings.cheap_model
+        tiers = ModelTiers.from_manifest({"model": settings.chat_model, "models": models})
+        local = any(m.startswith(LOCAL_PREFIX) for m in (tiers.cheap, tiers.default, tiers.strong))
         budget = Budget(settings.budget_soft_usd, settings.budget_hard_usd) if settings.budget_hard_usd > 0 else None
         self._llm = RoutedAnthropicLLM(
             tiers=tiers,
@@ -45,6 +49,7 @@ class KnowledgeService:
             policy=settings.routing_policy,
             ledger=LEDGER,
             budget=budget,
+            ollama=OllamaChat(settings.ollama_base_url) if local else None,
         )
 
     def close(self) -> None:

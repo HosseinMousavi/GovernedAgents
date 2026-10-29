@@ -44,6 +44,34 @@ ANSWER_SYSTEM = (
 )
 
 
+LOCAL_PREFIX = "ollama/"  # e.g. models.cheap: ollama/ssa-grader (the LoRA-tuned local tier)
+
+
+class OllamaChat:
+    """Minimal /api/chat client for the local tier. Returns (text, usage); usage is informational."""
+
+    def __init__(self, base_url: str, timeout: float = 120.0) -> None:
+        import httpx
+
+        self._url = base_url.rstrip("/") + "/api/chat"
+        self._client = httpx.Client(timeout=timeout)
+
+    def chat(self, *, model: str, system: str, user: str) -> tuple[str, Usage]:
+        r = self._client.post(
+            self._url,
+            json={
+                "model": model,
+                "stream": False,
+                "options": {"temperature": 0},
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            },
+        )
+        r.raise_for_status()
+        body = r.json()
+        usage = Usage(input_tokens=int(body.get("prompt_eval_count", 0)), output_tokens=int(body.get("eval_count", 0)))
+        return str(body.get("message", {}).get("content", "")), usage
+
+
 class BudgetExhaustedError(RuntimeError):
     """Daily hard budget for this tenant is spent; the caller should escalate to a human."""
 
@@ -92,6 +120,7 @@ class RoutedAnthropicLLM:
         tiers: ModelTiers,
         tenant_id: str,
         client: Any | None = None,
+        ollama: OllamaChat | None = None,
         api_key: str = "",
         policy: str = "routed",
         ledger: CostLedger | None = None,
@@ -103,6 +132,7 @@ class RoutedAnthropicLLM:
 
             client = Anthropic(api_key=api_key)
         self._c = client
+        self._ollama = ollama
         self._tiers = tiers
         self._tenant = tenant_id
         self._policy = policy
@@ -140,20 +170,32 @@ class RoutedAnthropicLLM:
             budget_remaining_usd=self._budget_remaining(),
         )
         decision = route(signals, self._tiers, self._policy)
-        msg = self._c.messages.create(
-            model=decision.model,
-            max_tokens=self._max,
-            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": blocks}],
-        )
-        u = getattr(msg, "usage", None)
-        usage = Usage(
-            input_tokens=int(getattr(u, "input_tokens", 0) or 0),
-            output_tokens=int(getattr(u, "output_tokens", 0) or 0),
-            cache_write_tokens=int(getattr(u, "cache_creation_input_tokens", 0) or 0),
-            cache_read_tokens=int(getattr(u, "cache_read_input_tokens", 0) or 0),
-        )
-        cost = estimate_cost(decision.model, usage)
+        if decision.model.startswith(LOCAL_PREFIX):
+            # Local (LoRA) tier: served by Ollama, no per-token price.
+            if self._ollama is None:
+                raise RuntimeError(f"model {decision.model!r} needs an ollama client (OLLAMA_BASE_URL)")
+            text, usage = self._ollama.chat(
+                model=decision.model[len(LOCAL_PREFIX) :],
+                system=system,
+                user="".join(b.get("text", "") for b in blocks),
+            )
+            cost = 0.0
+        else:
+            msg = self._c.messages.create(
+                model=decision.model,
+                max_tokens=self._max,
+                system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+                messages=[{"role": "user", "content": blocks}],
+            )
+            u = getattr(msg, "usage", None)
+            usage = Usage(
+                input_tokens=int(getattr(u, "input_tokens", 0) or 0),
+                output_tokens=int(getattr(u, "output_tokens", 0) or 0),
+                cache_write_tokens=int(getattr(u, "cache_creation_input_tokens", 0) or 0),
+                cache_read_tokens=int(getattr(u, "cache_read_input_tokens", 0) or 0),
+            )
+            text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
+            cost = estimate_cost(decision.model, usage)
         self._usage += usage
         self._cost += cost
         self._models.append(decision.model)
@@ -167,7 +209,7 @@ class RoutedAnthropicLLM:
         span.set_attribute("llm.output_tokens", usage.output_tokens)
         span.set_attribute("llm.cache_read_tokens", usage.cache_read_tokens)
         span.set_attribute("llm.cost_usd", round(cost, 6))
-        return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
+        return text.strip()
 
     def drain_usage(self) -> tuple[Usage, float, list[str]]:
         out = (self._usage, self._cost, list(self._models))

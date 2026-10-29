@@ -111,7 +111,8 @@ src/store_support/
   governance/    manifest.py, kill_switch.py, redaction.py (Presidio), logging_setup.py,
                  routing.py (model tiers, pure), cost.py (prices, usage, ledger, budget)
   telemetry/     tracing.py (OTel: request > step.* > tool.*)
-  evals/         datasets/ (30 questions, 20 scenarios), metrics.py, runner.py, drift.py
+  evals/         datasets/ (30 questions, 20 scenarios), metrics.py, runner.py, drift.py, deepeval_suite.py
+  lora/          distillation dataset, PEFT training, Ollama serving, student-vs-teacher eval
   data/          seed.py (Faker: 2 tenants, 200 customers, 50 SKUs, 500 orders)
 agents/*/manifest.yaml     name, version, model, owner, tools, memory, limits
 data/policies/*.md         13 policy and product-manual docs for the vector store
@@ -259,6 +260,36 @@ Tokens are flat across policies: the saving is routing, not shorter prompts. `ro
 because the deterministic faithfulness metric is coarse (citation validity + a labelled fact); the
 strong-tier upgrade on retries buys headroom on questions the first attempt struggles with, and the
 DeepEval tier is where answer-quality differences between tiers would show.
+
+## LoRA: a local, fine-tuned cheap tier
+
+The cheap tier does two structured jobs - grade the context (`{"score": 0.8}`) and pick the
+relevant chunks (`[0, 2]`). Those are small-model tasks, so the project includes a distillation
+pipeline that fine-tunes a local model to replace Haiku for them:
+
+```
+make lora-dataset    # Haiku (teacher) labels grade/filter on ~200 synthetic questions -> data/lora/*.jsonl  (~$0.50)
+make lora-train      # PEFT LoRA (r=16) on Qwen2.5-1.5B-Instruct; Apple silicon / CUDA / CPU; ~20-40 min on an M-series Mac
+make lora-serve      # merged weights -> Ollama container as `ssa-grader`
+make lora-eval       # student vs teacher agreement on 60 held-out examples (tuned vs untuned base)
+CHEAP_MODEL=ollama/ssa-grader make compare-routing   # the routing table with the local tier
+```
+
+Design points:
+
+- **Same prompts.** The student is trained on the exact `GRADER_SYSTEM` / `FILTER_SYSTEM` prompt
+  strings the router sends, so switching tiers is one env var (`CHEAP_MODEL=ollama/ssa-grader`),
+  not a prompt change. Only assistant tokens are trained on.
+- **Held-out means held-out.** The 30 labelled eval questions go into the validation split only;
+  `lora-eval` reports grade MAE, agreement on the >= threshold decision, and filter Jaccard against
+  the teacher on questions the student never saw.
+- **Governance unchanged.** A local model is just another `ollama/...` model name in the manifest;
+  routing, budgets, redaction, spans and the citation validator all apply. Cost is recorded as $0.
+- **When it is worth it.** Not at demo volume - Haiku is already cheap. It pays when the grader must
+  not send text off-box (PII residency), at high volume, or when helper-call latency dominates.
+
+`src/store_support/lora/`: `dataset.py` (pure, tested), `build_dataset.py`, `train.py`, `evaluate.py`
+(pure, tested), `eval_adapter.py`.
 
 ## LangGraph vs Claude Agent SDK
 

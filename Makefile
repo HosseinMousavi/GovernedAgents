@@ -56,3 +56,21 @@ compare-routing:   # live stack: all_default vs routed vs all_cheap on the 30 qu
 
 eval-online:       # scorecard against the live stack (pgvector + Claude)
 	@set -a; [ -f .env ] && . ./.env; set +a; DATABASE_URL=$(COMPOSE_PG_URL) python -m store_support.evals.runner --online
+
+# ---------- LoRA: local cheap tier ----------
+lora-dataset:      # Haiku labels grade/filter on synthetic questions -> data/lora/{train,val}.jsonl (~$0.50)
+	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.build_dataset
+
+lora-train:        # PEFT LoRA on Qwen2.5-1.5B-Instruct (MPS/CUDA/CPU) -> models/lora/ssa-grader/{adapter,merged}
+	python -m store_support.lora.train
+
+lora-serve:        # import the merged model into the compose Ollama as `ssa-grader`
+	docker compose cp models/lora/ssa-grader/merged ollama:/models/ssa-grader
+	docker compose exec -T ollama sh -c 'printf "FROM /models/ssa-grader\nPARAMETER temperature 0\nPARAMETER num_ctx 4096\n" > /tmp/Modelfile && ollama create ssa-grader -f /tmp/Modelfile'
+
+lora-eval:         # student vs teacher agreement on the held-out split (tuned vs untuned base)
+	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.eval_adapter --model ssa-grader
+	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.eval_adapter --model qwen2.5:1.5b-instruct || true
+
+compare-lora:      # routing table with the local tier as `cheap` (CHEAP_MODEL=ollama/ssa-grader)
+	@set -a; [ -f .env ] && . ./.env; set +a; DATABASE_URL=$(COMPOSE_PG_URL) CHEAP_MODEL=ollama/ssa-grader python scripts/compare_routing.py --policies routed,all_cheap

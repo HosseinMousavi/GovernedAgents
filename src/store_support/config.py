@@ -31,6 +31,7 @@ class Settings:
     n8n_webhook_url: str
     chat_model: str
     routing_policy: str  # routed | all_default | all_cheap
+    cheap_model: str  # optional override of the manifest's cheap tier (e.g. ollama/ssa-grader)
     budget_soft_usd: float  # per tenant per day: degrade to cheap tier
     budget_hard_usd: float  # per tenant per day: refuse LLM work (0 = no budget)
 
@@ -56,6 +57,7 @@ class Settings:
             n8n_webhook_url=e("N8N_WEBHOOK_URL", "http://localhost:5678/webhook"),
             chat_model=e("CHAT_MODEL", "claude-sonnet-4-5"),
             routing_policy=e("ROUTING_POLICY", "routed"),
+            cheap_model=e("CHEAP_MODEL", ""),
             budget_soft_usd=float(e("BUDGET_SOFT_USD_PER_DAY", "5")),
             budget_hard_usd=float(e("BUDGET_HARD_USD_PER_DAY", "10")),
         )

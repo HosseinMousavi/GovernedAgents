@@ -15,3 +15,5 @@ eval_results/
 .deepeval-cache.json
 .deepeval_telemetry.txt
 temp_test_run_data.json
+models/
+data/lora/

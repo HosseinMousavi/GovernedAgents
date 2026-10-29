@@ -70,7 +70,7 @@ make eval                   # offline eval -> scorecard (zero network)
 python scripts/demo_offline.py   # the whole demo flow in-process
 
 cp .env.example .env        # add ANTHROPIC_API_KEY (and OPENAI_API_KEY for embedding fallback)
-make up                     # postgres+pgvector, ollama (pulls bge-m3), n8n, jaeger, mcp, agents
+make up                     # postgres+pgvector (host port 5433), ollama (pulls bge-m3), n8n, jaeger, mcp, agents
 make tokens >> .env         # demo tokens for n8n; then `docker compose up -d n8n` again
 make demo                   # scripts/demo.sh against the live stack
 ```

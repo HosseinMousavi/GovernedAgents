@@ -11,3 +11,7 @@ build/
 .terraform/
 *.tfstate*
 eval_results/
+.deepeval/
+.deepeval-cache.json
+.deepeval_telemetry.txt
+temp_test_run_data.json

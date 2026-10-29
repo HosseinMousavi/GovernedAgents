@@ -133,6 +133,27 @@ numbers measure the pipeline deterministically. `--online` uses pgvector + Anthr
 retrieval/generation metrics. The two governance metrics must be 1.0 or the job fails.
 `weekly-eval.yml` reruns and `evals/drift.py` fails on a > 0.05 drop against the stored baseline.
 
+### Judged tier: DeepEval
+
+The scorecard is deterministic by design. A second, opt-in tier uses [DeepEval](https://github.com/confident-ai/deepeval)
+with **Claude as the judge** on the same 30 questions and 20 scenarios:
+
+| Metric | What it judges | Threshold |
+|---|---|---|
+| `FaithfulnessMetric` | every claim in the answer is supported by the retrieved chunks | 0.8 |
+| `AnswerRelevancyMetric` | the answer addresses the question | 0.7 |
+| `ContextualRelevancyMetric` | the retrieved chunks are on-topic | 0.5 |
+| `ToolCorrectnessMetric` | resolver called exactly the expected tools, in order | 1.0 |
+
+```bash
+pip install -e ".[deepeval]"
+make eval-deepeval                      # offline pipeline, judged (needs ANTHROPIC_API_KEY)
+DEEPEVAL_MODE=online make eval-deepeval # live pgvector + Claude answers, judged (stack must be up)
+```
+
+`src/store_support/evals/deepeval_suite.py` converts results into `LLMTestCase`s; `tests/evals/`
+holds the parametrized `assert_test` calls. The weekly workflow runs it when a key is configured.
+
 ## Reuse patterns
 
 ### Add an MCP tool in ~20 lines

@@ -24,6 +24,10 @@ jobs:
           fi
       - name: Drift check (fails if any metric drops > 0.05 vs baseline)
         run: python -m store_support.evals.drift
+      - name: DeepEval judged tier (Claude as judge) - only when a key is configured
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        run: pip install -e ".[deepeval]" && deepeval test run tests/evals -q
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: weekly-eval, path: eval_results/ }

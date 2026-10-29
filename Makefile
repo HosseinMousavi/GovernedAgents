@@ -33,6 +33,9 @@ down:
 drift:
 	python -m store_support.evals.drift
 
+eval-deepeval:   # LLM-judged tier (DeepEval, Claude as judge). Needs ANTHROPIC_API_KEY. DEEPEVAL_MODE=online for the live stack.
+	@set -a; [ -f .env ] && . ./.env; set +a; deepeval test run tests/evals -q
+
 tokens:   # signs with TOKEN_SIGNING_KEY from .env so tokens match the running containers
 	@set -a; [ -f .env ] && . ./.env; set +a; python scripts/tokens.py
 

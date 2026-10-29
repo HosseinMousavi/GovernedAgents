@@ -75,6 +75,10 @@ make tokens >> .env         # demo tokens for n8n; then `docker compose up -d n8
 make demo                   # scripts/demo.sh against the live stack
 ```
 
+Docker Desktop needs **at least 6 GB** of memory for the full stack (Ollama's BGE-M3 alone is ~1.1 GB;
+Settings -> Resources -> Memory). Containers use the small spaCy model for Presidio; set
+`SPACY_MODEL=en_core_web_lg` for higher-recall NER where memory allows.
+
 Then open n8n at `http://localhost:5678` and import `n8n/workflows/*.json` (see `n8n/README.md`),
 Jaeger at `http://localhost:16686`.
 

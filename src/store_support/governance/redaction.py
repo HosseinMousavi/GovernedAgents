@@ -9,6 +9,7 @@ Both engines return the same marker style: ``<EMAIL_ADDRESS>``.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import MutableMapping
 from functools import lru_cache
@@ -36,8 +37,14 @@ def _presidio() -> tuple[Any, Any] | None:
         from presidio_anonymizer import AnonymizerEngine
     except ImportError:
         return None
+    model = os.environ.get("SPACY_MODEL", "en_core_web_lg")  # sm (12 MB) in containers, lg (560 MB) on dev boxes
     try:
-        return AnalyzerEngine(), AnonymizerEngine()
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+        provider = NlpEngineProvider(
+            nlp_configuration={"nlp_engine_name": "spacy", "models": [{"lang_code": "en", "model_name": model}]}
+        )
+        return AnalyzerEngine(nlp_engine=provider.create_engine(), supported_languages=["en"]), AnonymizerEngine()
     except Exception:  # noqa: BLE001 - missing spaCy model etc.; fall back silently
         return None
 

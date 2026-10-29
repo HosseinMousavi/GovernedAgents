@@ -12,6 +12,7 @@ x-env: &env
   OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
   CHAT_MODEL: ${CHAT_MODEL:-claude-sonnet-4-5}
   DEV_TOKENS: "true"
+  SPACY_MODEL: en_core_web_sm       # memory: lg model x2 containers + Ollama exceeded a 4 GB Docker VM
 
 services:
   postgres:

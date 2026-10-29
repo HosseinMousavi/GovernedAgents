@@ -64,3 +64,25 @@ def test_drift_compare_flags_only_real_regressions() -> None:
     assert compare(base, {"retrieval_hit_rate": 0.7, "faithfulness": 0.8}, 0.05) == [
         "retrieval_hit_rate: 0.900 -> 0.700"
     ]
+
+
+def test_online_card_shape_with_a_fake_service(monkeypatch) -> None:
+    """run_online's aggregation must accept exactly what its own rows produce (regression)."""
+    from store_support.evals import online
+    from store_support.knowledge.pipeline import KnowledgeResult, Outcome
+
+    class FakeSvc:
+        def __init__(self, *a, **k):  # noqa: ANN002, ANN003
+            pass
+
+        async def ask(self, q: str) -> KnowledgeResult:
+            return KnowledgeResult(outcome=Outcome.ESCALATED, reason="no_context")
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(online, "KnowledgeService", FakeSvc)
+    card = online.run_online()
+    assert card["n_questions"] == 30
+    assert set(card["cost"]) == {"avg_cost_usd", "avg_tokens", "avg_context_compaction"}
+    assert card["cost"]["avg_cost_usd"] == 0.0

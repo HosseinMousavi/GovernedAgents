@@ -30,8 +30,15 @@ def run_online() -> dict[str, Any]:
                 "faithfulness": faithfulness(res.answer, res.citations, res.hits, q.keywords),
                 "outcome": res.outcome.value,
                 "retries": res.retries,
+                "cost_usd": res.cost_usd,
+                "tokens": res.usage.total_tokens,
+                "context_chunks": len(res.hits),
+                "context_used": len(res.hits_used),
+                "models": res.models,
+                "answer": res.answer,
             }
         )
+    svc.close()
     offline = run_offline()  # governance metrics come from the deterministic path
     return {
         "mode": "online",

@@ -18,6 +18,7 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 
 from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError as McpToolError
 from psycopg_pool import ConnectionPool
 
 from store_support.access import AgentIdentity, RequestContext, TokenError, parse_token
@@ -87,11 +88,16 @@ def build_server(
 
     def run(ctx: Context, name: str, args: dict[str, Any]) -> dict[str, Any]:
         try:
-            rc = context_from_headers(dict(ctx.headers or {}), key=settings.token_signing_key)
-        except AuthError as e:
-            raise ToolError("forbidden", f"auth: {e}") from e
-        with repo_factory() as repo:
-            return execute_tool(rc, name, args, repo=repo, audit=audit, kill_switch=kill_switch.engaged)
+            try:
+                rc = context_from_headers(dict(ctx.headers or {}), key=settings.token_signing_key)
+            except AuthError as e:
+                raise ToolError("forbidden", f"auth: {e}") from e
+            with repo_factory() as repo:
+                return execute_tool(rc, name, args, repo=repo, audit=audit, kill_switch=kill_switch.engaged)
+        except ToolError as e:
+            # The SDK hides unexpected exceptions from clients (good), but ours are deliberate and
+            # PII-free: "<code>: <reason>" so agents and n8n can branch on them.
+            raise McpToolError(f"{e.code}: {e.reason or e}") from e
 
     for spec in TOOLS.values():
         server.tool(name=spec.name, description=f"{spec.description} Required scope: {spec.scope.value}.")(

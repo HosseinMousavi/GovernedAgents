@@ -48,3 +48,11 @@ def test_dev_tokens_disabled_by_default(client: TestClient) -> None:
 
 def test_manifests_listed(client: TestClient) -> None:
     assert set(client.get("/manifests").json()) == {"intake-agent", "knowledge-agent", "resolver-agent"}
+
+
+def test_mcp_error_code_parsing() -> None:
+    from store_support.resolver.mcp_client import _code_from
+
+    assert _code_from("Error executing tool issue_refund: forbidden: missing_scope") == "forbidden"
+    assert _code_from("Error executing tool lookup_order: not_found: order not found") == "not_found"
+    assert _code_from("Error executing tool x") == "error"

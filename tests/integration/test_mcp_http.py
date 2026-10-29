@@ -113,6 +113,7 @@ async def test_customer_token_denied_refund(server_url) -> None:
         url, _token(Scope.CUSTOMER_READ_OWN), "issue_refund", {"order_id": 1042, "amount_cents": 1, "reason": "x"}
     )
     assert res.is_error is True
+    assert "forbidden: missing_scope" in res.content[0].text
     assert audit.entries[-1]["reason"] == "missing_scope"
 
 

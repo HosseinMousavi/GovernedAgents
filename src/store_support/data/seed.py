@@ -168,7 +168,8 @@ def generate(*, seed: int = 42, n_customers: int = 200, n_orders: int = 500) -> 
     demo_cust = by_tenant["store-a"][0]
     d.orders = [o for o in d.orders if o.order_id != 1042]
     d.orders.append(
-        Order(1042, "store-a", demo_cust.customer_id, "SKU-001", 2499, "delivered", today - timedelta(days=6))
+        # Dated relative to the REAL today so the demo always lands inside the 7-day damaged-on-arrival window.
+        Order(1042, "store-a", demo_cust.customer_id, "SKU-001", 2499, "delivered", date.today() - timedelta(days=2))
     )
     d.orders.sort(key=lambda o: o.order_id)
     return d

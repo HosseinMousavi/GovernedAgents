@@ -17,6 +17,15 @@ from mcp.client.streamable_http import streamable_http_client
 from store_support.access import RequestContext
 from store_support.mcp_server.tools import ToolError
 
+_CODES = ("forbidden", "invalid_input", "not_found", "business_rule")
+
+
+def _code_from(text: str) -> str:
+    """Server errors look like 'Error executing tool x: <code>: <reason>'."""
+    body = text.split(":", 1)[1] if text.startswith("Error executing tool") and ":" in text else text
+    head = body.strip().split(":", 1)[0].strip()
+    return head if head in _CODES else "error"
+
 
 class McpToolClient:
     def __init__(self, url: str, *, token_for: Any) -> None:
@@ -41,12 +50,7 @@ class McpToolClient:
                     res = await s.call_tool(tool, args)
         if res.is_error:
             text = "".join(getattr(c, "text", "") for c in res.content)
-            code = (
-                "forbidden"
-                if "forbidden" in text or "not entitled" in text or "kill switch" in text
-                else ("not_found" if "not found" in text else "error")
-            )
-            raise ToolError(code, text[:200])
+            raise ToolError(_code_from(text), text[:200])
         if res.structured_content:
             return dict(res.structured_content)
         return json.loads("".join(getattr(c, "text", "") for c in res.content))  # type: ignore[no-any-return]

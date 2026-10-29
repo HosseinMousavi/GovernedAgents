@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from store_support.data.seed import generate
 
 
@@ -36,3 +38,4 @@ def test_demo_order_1042_is_a_delivered_steering_wheel_cover_in_store_a() -> Non
     assert o.tenant_id == "store-a"
     assert o.status == "delivered"
     assert "steering wheel cover" in d.product_name(o.tenant_id, o.sku).lower()
+    assert 0 <= (date.today() - o.ordered_on).days <= 7  # inside the damaged-on-arrival window whenever the demo runs

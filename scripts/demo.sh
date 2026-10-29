@@ -25,9 +25,9 @@ curl -s "$MCP" -H "authorization: Bearer $MANAGER_TOKEN" -H 'x-agent-name: n8n-a
   -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"issue_refund\",\"arguments\":{\"order_id\":1042,\"amount_cents\":$AMOUNT,\"reason\":\"manager approved: damaged on arrival\"}}}" | j
 
 echo "## 5. Flip the kill switch -> every tool call is refused"
-docker compose exec -T mcp touch /shared/KILL
+docker compose exec -T -u root mcp touch /shared/KILL
 curl -s "$MCP" -H "authorization: Bearer $MANAGER_TOKEN" -H 'x-agent-name: demo' -H 'accept: application/json' -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lookup_order","arguments":{"order_id":1042}}}' | j
-docker compose exec -T mcp rm /shared/KILL
+docker compose exec -T -u root mcp rm /shared/KILL
 
 echo "## 6. Traces: http://localhost:16686  (service: store-support-agent)   Access log: docker compose logs mcp | grep tool_call"

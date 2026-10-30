@@ -39,4 +39,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Build image (no push on PRs)
         uses: docker/build-push-action@v6
-        with: { context: ., push: false, tags: store-support-agent:${{ github.sha }} }
+        with:
+          context: .
+          push: false
+          tags: store-support-agent:${{ github.sha }}

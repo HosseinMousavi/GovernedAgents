@@ -270,11 +270,22 @@ pipeline that fine-tunes a local model to replace Haiku for them:
 ```
 make lora-dataset    # Haiku (teacher) labels grade/filter on ~200 synthetic questions -> data/lora/*.jsonl  (~$0.50)
 make lora-train      # PEFT LoRA (r=16) on Qwen2.5-1.5B-Instruct; micro-batch 1 + grad checkpointing so it fits a 24 GB Mac
-make lora-train-small  # 0.5B student, 1 epoch: ~30 min on a 16 GB M-series Mac (what the numbers below were measured with)
-make lora-serve      # merged weights -> Ollama container as `ssa-grader`
-make lora-eval       # student vs teacher agreement on 60 held-out examples (tuned vs untuned base)
-CHEAP_MODEL=ollama/ssa-grader make compare-routing   # the routing table with the local tier
+make lora-train-small  # 0.5B student, 1 epoch: ~9 min on an M-series Mac (what the numbers below were measured with)
+make lora-serve      # merged weights -> GGUF (llama.cpp) -> Ollama container as `ssa-grader`
+make lora-eval       # student vs teacher agreement on 128 held-out examples (tuned vs untuned base)
+make compare-lora    # the routing table with the local tier as `cheap`
 ```
+
+Measured (teacher = Haiku 4.5; 392 training examples; 64 held-out grade + 64 held-out filter prompts;
+Qwen2.5-0.5B-Instruct, LoRA r=16, 1 epoch, 8m50s on an Apple-silicon Mac, train loss 1.17 -> 0.18):
+
+| student                         | grade decision agreement (>= 0.7) | grade MAE | grade within +-0.15 | filter Jaccard |
+|---------------------------------|-----------------------------------|-----------|---------------------|----------------|
+| Qwen2.5-0.5B-Instruct, untuned  | 0.36                              | 0.66      | 0.31                | 0.57           |
+| **+ LoRA (`ssa-grader`)**       | **0.84**                          | **0.18**  | **0.77**            | **0.69**       |
+
+The untuned base is near chance on the pass/fail grading decision; nine minutes of LoRA brings it
+to 84% agreement with the teacher at $0 per call (`eval_results/lora_*.json`).
 
 Design points:
 

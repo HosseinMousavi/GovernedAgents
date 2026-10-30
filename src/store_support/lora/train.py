@@ -146,8 +146,8 @@ def main(
     merged.save_pretrained(out / "merged", safe_serialization=True)
     tok.save_pretrained(out / "merged")
     (out / "Modelfile").write_text(
-        f"FROM ./merged\nPARAMETER temperature 0\nPARAMETER num_ctx 4096\n"
-        f'SYSTEM ""\n# import: ollama create {name} -f {out / "Modelfile"}\n'
+        f"FROM ./{name}.gguf\nPARAMETER temperature 0\nPARAMETER num_ctx 4096\n"
+        f"# Ollama cannot import Qwen2 safetensors; `make lora-serve` converts ./merged to ./{name}.gguf first.\n"
     )
     (out / "train_metrics.json").write_text(
         json.dumps(

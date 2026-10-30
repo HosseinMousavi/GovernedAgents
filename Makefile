@@ -71,9 +71,12 @@ lora-serve:        # import the merged model into the compose Ollama as `ssa-gra
 	docker compose cp models/lora/ssa-grader/merged ollama:/models/ssa-grader
 	docker compose exec -T ollama sh -c 'printf "FROM /models/ssa-grader\nPARAMETER temperature 0\nPARAMETER num_ctx 4096\n" > /tmp/Modelfile && ollama create ssa-grader -f /tmp/Modelfile'
 
+LORA_BASE_TAG ?= qwen2.5:0.5b-instruct   # untuned base for the before/after; qwen2.5:1.5b-instruct for `make lora-train`
+
 lora-eval:         # student vs teacher agreement on the held-out split (tuned vs untuned base)
 	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.eval_adapter --model ssa-grader
-	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.eval_adapter --model qwen2.5:1.5b-instruct || true
+	docker compose exec -T ollama ollama pull $(LORA_BASE_TAG)
+	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.eval_adapter --model $(LORA_BASE_TAG) || true
 
 compare-lora:      # routing table with the local tier as `cheap` (CHEAP_MODEL=ollama/ssa-grader)
 	@set -a; [ -f .env ] && . ./.env; set +a; DATABASE_URL=$(COMPOSE_PG_URL) CHEAP_MODEL=ollama/ssa-grader python scripts/compare_routing.py --policies routed,all_cheap

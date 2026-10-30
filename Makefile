@@ -68,6 +68,7 @@ lora-train-small:  # 0.5B student, 1 epoch: fits a 16 GB Mac in ~30 min
 	python -m store_support.lora.train --base Qwen/Qwen2.5-0.5B-Instruct --epochs 1 $(ARGS)
 
 lora-serve:        # import the merged model into the compose Ollama as `ssa-grader`
+	docker compose exec -T ollama mkdir -p /models
 	docker compose cp models/lora/ssa-grader/merged ollama:/models/ssa-grader
 	docker compose exec -T ollama sh -c 'printf "FROM /models/ssa-grader\nPARAMETER temperature 0\nPARAMETER num_ctx 4096\n" > /tmp/Modelfile && ollama create ssa-grader -f /tmp/Modelfile'
 

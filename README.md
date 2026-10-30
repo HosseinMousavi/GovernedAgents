@@ -255,11 +255,20 @@ prints a table of avg cost/question, tokens, faithfulness and retrieval hit rate
 | all_default (Sonnet everywhere) | $0.0050 | 1212 | 0.95 | 1.00 | 76% |
 | **routed** (Haiku for grade/rewrite/filter, Sonnet answer, Opus on retry) | **$0.0026 (-46%)** | 1220 | 0.97 | 1.00 | 77% |
 | all_cheap (Haiku everywhere) | $0.0018 (-64%) | 1229 | 0.97 | 1.00 | 77% |
+| routed, cheap = local LoRA student (`make compare-lora`) | $0.0012 (-76%) | 1054 | 0.83 | 1.00 | 80% |
+| all_cheap = local LoRA student | $0.0000 | 1000 | 0.00 | 1.00 | 80% |
 
 Tokens are flat across policies: the saving is routing, not shorter prompts. `routed` is the default
 because the deterministic faithfulness metric is coarse (citation validity + a labelled fact); the
 strong-tier upgrade on retries buys headroom on questions the first attempt struggles with, and the
 DeepEval tier is where answer-quality differences between tiers would show.
+
+The two LoRA rows (see the next section) show the limits honestly: swapping Haiku for the local
+0.5B student on the helper calls cuts cost another 54% but costs 0.14 of faithfulness, because the
+student's chunk filter agrees with the teacher only 69% of the time and sometimes drops the chunk
+the answer needs. Sending the *answer* step to it as well (`all_cheap`) gives 0.00: a distilled
+helper is not an answerer. The next step, if this were production, is a filter fallback (keep all
+hits when the student keeps fewer than two) and routing only `grade` to the student.
 
 ## LoRA: a local, fine-tuned cheap tier
 

@@ -76,7 +76,7 @@ lora-serve:        # merged safetensors -> GGUF (llama.cpp converter) -> Ollama 
 	docker compose exec -T ollama mkdir -p /models
 	docker compose cp $(LORA_DIR)/ssa-grader.gguf ollama:/models/ssa-grader.gguf
 	docker compose exec -T ollama sh -c 'printf "FROM /models/ssa-grader.gguf\nPARAMETER temperature 0\nPARAMETER num_ctx 4096\n" > /tmp/Modelfile && ollama create ssa-grader -f /tmp/Modelfile'
-	docker compose exec -T ollama ollama run ssa-grader "Reply with the single token OK"
+	docker compose exec -T ollama ollama show ssa-grader --modelfile | head -3
 
 LORA_BASE_TAG ?= qwen2.5:0.5b-instruct   # untuned base for the before/after; qwen2.5:1.5b-instruct for `make lora-train`
 

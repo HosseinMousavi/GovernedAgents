@@ -269,7 +269,8 @@ pipeline that fine-tunes a local model to replace Haiku for them:
 
 ```
 make lora-dataset    # Haiku (teacher) labels grade/filter on ~200 synthetic questions -> data/lora/*.jsonl  (~$0.50)
-make lora-train      # PEFT LoRA (r=16) on Qwen2.5-1.5B-Instruct; Apple silicon / CUDA / CPU; ~20-40 min on an M-series Mac
+make lora-train      # PEFT LoRA (r=16) on Qwen2.5-1.5B-Instruct; micro-batch 1 + grad checkpointing so it fits a 24 GB Mac
+make lora-train-small  # 0.5B student, 1 epoch: ~30 min on a 16 GB M-series Mac (what the numbers below were measured with)
 make lora-serve      # merged weights -> Ollama container as `ssa-grader`
 make lora-eval       # student vs teacher agreement on 60 held-out examples (tuned vs untuned base)
 CHEAP_MODEL=ollama/ssa-grader make compare-routing   # the routing table with the local tier

@@ -62,7 +62,10 @@ lora-dataset:      # Haiku labels grade/filter on synthetic questions -> data/lo
 	@set -a; [ -f .env ] && . ./.env; set +a; python -m store_support.lora.build_dataset
 
 lora-train:        # PEFT LoRA on Qwen2.5-1.5B-Instruct (MPS/CUDA/CPU) -> models/lora/ssa-grader/{adapter,merged}
-	python -m store_support.lora.train
+	python -m store_support.lora.train $(ARGS)
+
+lora-train-small:  # 0.5B student, 1 epoch: fits a 16 GB Mac in ~30 min
+	python -m store_support.lora.train --base Qwen/Qwen2.5-0.5B-Instruct --epochs 1 $(ARGS)
 
 lora-serve:        # import the merged model into the compose Ollama as `ssa-grader`
 	docker compose cp models/lora/ssa-grader/merged ollama:/models/ssa-grader

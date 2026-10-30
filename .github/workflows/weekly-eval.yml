@@ -6,6 +6,8 @@ on:
 jobs:
   drift:
     runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,7 +19,6 @@ jobs:
           path: eval_results/baseline.json
           key: eval-baseline-${{ hashFiles('src/store_support/evals/datasets/*.jsonl') }}
       - name: Run evals (online if ANTHROPIC_API_KEY is set, else offline)
-        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
         run: |
           if [ -n "$ANTHROPIC_API_KEY" ] && [ -n "${{ secrets.DATABASE_URL }}" ]; then
             DATABASE_URL='${{ secrets.DATABASE_URL }}' python -m store_support.evals.runner --online
@@ -27,8 +28,7 @@ jobs:
       - name: Drift check (fails if any metric drops > 0.05 vs baseline)
         run: python -m store_support.evals.drift
       - name: DeepEval judged tier (Claude as judge) - only when a key is configured
-        if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
-        env: { ANTHROPIC_API_KEY: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: pip install -e ".[deepeval]" && deepeval test run tests/evals -q
       - uses: actions/upload-artifact@v4
         if: always()

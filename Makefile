@@ -71,7 +71,7 @@ LORA_DIR = models/lora/ssa-grader
 
 lora-serve:        # merged safetensors -> GGUF (llama.cpp converter) -> Ollama `ssa-grader`
 	@[ -d models/llama.cpp ] || git clone -q --depth 1 https://github.com/ggml-org/llama.cpp models/llama.cpp
-	pip install -q gguf
+	pip install -q gguf sentencepiece protobuf
 	python models/llama.cpp/convert_hf_to_gguf.py $(LORA_DIR)/merged --outfile $(LORA_DIR)/ssa-grader.gguf --outtype f16
 	docker compose exec -T ollama mkdir -p /models
 	docker compose cp $(LORA_DIR)/ssa-grader.gguf ollama:/models/ssa-grader.gguf
